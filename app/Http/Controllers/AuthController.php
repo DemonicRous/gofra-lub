@@ -18,29 +18,38 @@ class AuthController extends Controller
         return Inertia::render('Auth/Login');
     }
 
-    // Обработка входа
+    // Обработка входа (поддерживает login по email или nickname)
     public function login(Request $request)
     {
-        $credentials = $request->validate([
-            'email' => 'required|email',
-            'password' => 'required',
+        $request->validate([
+            'login' => 'required|string',
+            'password' => 'required|string',
         ]);
+
+        // Определяем, что ввел пользователь: email или nickname
+        $loginField = filter_var($request->login, FILTER_VALIDATE_EMAIL) ? 'email' : 'nickname';
+
+        $credentials = [
+            $loginField => $request->login,
+            'password' => $request->password,
+        ];
 
         if (Auth::attempt($credentials, $request->boolean('remember'))) {
             $request->session()->regenerate();
 
             $user = Auth::user();
+
             if (!$user->hasVerifiedEmail()) {
                 Auth::logout();
                 throw ValidationException::withMessages([
-                    'email' => 'Пожалуйста, подтвердите email перед входом.',
+                    'login' => 'Пожалуйста, подтвердите email перед входом.',
                 ]);
             }
 
             if (!$user->isApproved()) {
                 Auth::logout();
                 throw ValidationException::withMessages([
-                    'email' => 'Ваш аккаунт ожидает одобрения администратором.',
+                    'login' => 'Ваш аккаунт ожидает одобрения администратором.',
                 ]);
             }
 
@@ -48,7 +57,7 @@ class AuthController extends Controller
         }
 
         throw ValidationException::withMessages([
-            'email' => 'Неверные учетные данные.',
+            'login' => 'Неверные учетные данные.',
         ]);
     }
 
@@ -62,13 +71,46 @@ class AuthController extends Controller
     public function register(Request $request)
     {
         $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users',
+            'last_name' => 'required|string|max:255',
+            'first_name' => 'required|string|max:255',
+            'patronymic' => 'nullable|string|max:255',
+            'position' => 'required|string|max:255',
+            'department' => 'required|string|max:255',
+            'email' => [
+                'required',
+                'string',
+                'email',
+                'max:255',
+                'unique:users',
+                function ($attribute, $value, $fail) {
+                    $allowedDomains = ['@sybox.ru', '@uralkarton.ru', '@yandex.ru', '@gmail.com'];
+                    $isValid = false;
+
+                    foreach ($allowedDomains as $domain) {
+                        if (str_ends_with($value, $domain)) {
+                            $isValid = true;
+                            break;
+                        }
+                    }
+
+                    if (!$isValid) {
+                        $fail('Разрешены только email адреса с доменами: @sybox.ru, @uralkarton.ru, @yandex.ru');
+                    }
+                },
+            ],
             'password' => 'required|string|min:8|confirmed',
         ]);
 
+        // Генерируем никнейм из email
+        $nickname = User::generateNicknameFromEmail($request->email);
+
         $user = User::create([
-            'name' => $request->name,
+            'last_name' => $request->last_name,
+            'first_name' => $request->first_name,
+            'patronymic' => $request->patronymic,
+            'nickname' => $nickname,
+            'position' => $request->position,
+            'department' => $request->department,
             'email' => $request->email,
             'password' => Hash::make($request->password),
         ]);
