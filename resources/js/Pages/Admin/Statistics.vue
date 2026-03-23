@@ -3,8 +3,8 @@
         <Head title="Статистика" />
 
         <div class="container mx-auto px-4 py-8">
-            <div class="bg-white rounded-lg shadow-xl p-6">
-                <h1 class="text-2xl font-bold mb-6">Статистика системы</h1>
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 transition-colors duration-300">
+                <h1 class="text-2xl font-bold mb-6 text-gray-900 dark:text-white">Статистика системы</h1>
 
                 <!-- Общая статистика -->
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -71,36 +71,36 @@
 
                 <!-- Статистика по ролям -->
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-                    <div class="bg-gray-50 rounded-lg p-6">
-                        <h2 class="text-lg font-semibold mb-4">Распределение по ролям</h2>
+                    <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-6 transition-colors duration-300">
+                        <h2 class="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Распределение по ролям</h2>
                         <div class="space-y-3">
                             <div>
                                 <div class="flex justify-between text-sm mb-1">
-                                    <span>Администраторы</span>
-                                    <span>{{ stats.by_role?.admin || 0 }}</span>
+                                    <span class="text-gray-700 dark:text-gray-300">Администраторы</span>
+                                    <span class="text-gray-900 dark:text-white font-medium">{{ stats.by_role?.admin || 0 }}</span>
                                 </div>
-                                <div class="w-full bg-gray-200 rounded-full h-2">
-                                    <div class="bg-purple-600 rounded-full h-2"
+                                <div class="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
+                                    <div class="bg-purple-600 rounded-full h-2 transition-all duration-300"
                                          :style="{ width: `${getRolePercentage(stats.by_role?.admin)}%` }"></div>
                                 </div>
                             </div>
                             <div>
                                 <div class="flex justify-between text-sm mb-1">
-                                    <span>Менеджеры</span>
-                                    <span>{{ stats.by_role?.manager || 0 }}</span>
+                                    <span class="text-gray-700 dark:text-gray-300">Менеджеры</span>
+                                    <span class="text-gray-900 dark:text-white font-medium">{{ stats.by_role?.manager || 0 }}</span>
                                 </div>
-                                <div class="w-full bg-gray-200 rounded-full h-2">
-                                    <div class="bg-blue-600 rounded-full h-2"
+                                <div class="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
+                                    <div class="bg-blue-600 rounded-full h-2 transition-all duration-300"
                                          :style="{ width: `${getRolePercentage(stats.by_role?.manager)}%` }"></div>
                                 </div>
                             </div>
                             <div>
                                 <div class="flex justify-between text-sm mb-1">
-                                    <span>Пользователи</span>
-                                    <span>{{ stats.by_role?.user || 0 }}</span>
+                                    <span class="text-gray-700 dark:text-gray-300">Пользователи</span>
+                                    <span class="text-gray-900 dark:text-white font-medium">{{ stats.by_role?.user || 0 }}</span>
                                 </div>
-                                <div class="w-full bg-gray-200 rounded-full h-2">
-                                    <div class="bg-green-600 rounded-full h-2"
+                                <div class="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
+                                    <div class="bg-green-600 rounded-full h-2 transition-all duration-300"
                                          :style="{ width: `${getRolePercentage(stats.by_role?.user)}%` }"></div>
                                 </div>
                             </div>
@@ -108,20 +108,20 @@
                     </div>
 
                     <!-- Статистика по отделам -->
-                    <div class="bg-gray-50 rounded-lg p-6">
-                        <h2 class="text-lg font-semibold mb-4">Распределение по отделам</h2>
-                        <div class="space-y-3 max-h-64 overflow-y-auto">
+                    <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-6 transition-colors duration-300">
+                        <h2 class="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Распределение по отделам</h2>
+                        <div class="space-y-3 max-h-64 overflow-y-auto custom-scrollbar">
                             <div v-for="(count, department) in stats.by_department" :key="department" class="space-y-1">
                                 <div class="flex justify-between text-sm">
-                                    <span class="truncate">{{ department }}</span>
-                                    <span>{{ count }}</span>
+                                    <span class="text-gray-700 dark:text-gray-300 truncate">{{ department }}</span>
+                                    <span class="text-gray-900 dark:text-white font-medium">{{ count }}</span>
                                 </div>
-                                <div class="w-full bg-gray-200 rounded-full h-2">
-                                    <div class="bg-indigo-600 rounded-full h-2"
+                                <div class="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
+                                    <div class="bg-indigo-600 rounded-full h-2 transition-all duration-300"
                                          :style="{ width: `${getDepartmentPercentage(count)}%` }"></div>
                                 </div>
                             </div>
-                            <div v-if="Object.keys(stats.by_department || {}).length === 0" class="text-gray-500 text-center py-4">
+                            <div v-if="Object.keys(stats.by_department || {}).length === 0" class="text-gray-500 dark:text-gray-400 text-center py-4">
                                 Нет данных
                             </div>
                         </div>
@@ -129,25 +129,29 @@
                 </div>
 
                 <!-- Последние зарегистрированные пользователи -->
-                <div class="bg-gray-50 rounded-lg p-6">
-                    <h2 class="text-lg font-semibold mb-4">Последние зарегистрированные пользователи</h2>
+                <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-6 transition-colors duration-300">
+                    <h2 class="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Последние зарегистрированные пользователи</h2>
                     <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-gray-200">
+                        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-600">
                             <thead>
-                            <tr class="text-left text-sm text-gray-500">
+                            <tr class="text-left text-sm text-gray-500 dark:text-gray-400">
                                 <th class="pb-3">ФИО</th>
                                 <th class="pb-3">Email</th>
+                                <th class="pb-3">Должность</th>
+                                <th class="pb-3">Отдел</th>
                                 <th class="pb-3">Дата регистрации</th>
                             </tr>
                             </thead>
-                            <tbody class="divide-y divide-gray-200">
-                            <tr v-for="user in stats.recent" :key="user.id" class="hover:bg-gray-100">
-                                <td class="py-2">{{ user.full_name }}</td>
-                                <td class="py-2">{{ user.email }}</td>
-                                <td class="py-2">{{ formatDate(user.created_at) }}</td>
+                            <tbody class="divide-y divide-gray-200 dark:divide-gray-600">
+                            <tr v-for="user in stats.recent" :key="user.id" class="hover:bg-gray-100 dark:hover:bg-gray-600/50 transition">
+                                <td class="py-2 px-3 text-gray-900 dark:text-white">{{ user.full_name }} </td>
+                                <td class="py-2 text-gray-600 dark:text-gray-300">{{ user.email }} </td>
+                                <td class="py-2 text-gray-600 dark:text-gray-300">{{ user.position_name || user.position || '—' }} </td>
+                                <td class="py-2 text-gray-600 dark:text-gray-300">{{ user.department_name || user.department || '—' }} </td>
+                                <td class="py-2 text-gray-600 dark:text-gray-300">{{ formatDate(user.created_at) }} </td>
                             </tr>
                             <tr v-if="!stats.recent?.length">
-                                <td colspan="3" class="py-4 text-center text-gray-500">
+                                <td colspan="5" class="py-4 text-center text-gray-500 dark:text-gray-400">
                                     Нет зарегистрированных пользователей
                                 </td>
                             </tr>
@@ -201,3 +205,50 @@ const formatDate = (date) => {
     })
 }
 </script>
+
+<style scoped>
+/* Кастомный скроллбар для списка отделов */
+.custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 3px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+/* Dark mode scrollbar */
+.dark .custom-scrollbar::-webkit-scrollbar-track {
+    background: #2d3748;
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #4a5568;
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #718096;
+}
+
+/* Плавные переходы для прогресс-баров */
+.bg-purple-600,
+.bg-blue-600,
+.bg-green-600,
+.bg-indigo-600 {
+    transition: width 0.3s ease-in-out;
+}
+
+/* Улучшенные hover эффекты для таблицы */
+tbody tr {
+    transition: background-color 0.2s ease;
+}
+</style>

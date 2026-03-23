@@ -7,26 +7,13 @@ use Inertia\Middleware;
 
 class HandleInertiaRequests extends Middleware
 {
-    /**
-     * The root template that is loaded on the first page visit.
-     *
-     * @var string
-     */
     protected $rootView = 'app';
 
-    /**
-     * Determine the current asset version.
-     */
     public function version(Request $request): string|null
     {
         return parent::version($request);
     }
 
-    /**
-     * Define the props that are shared by default.
-     *
-     * @return array<string, mixed>
-     */
     public function share(Request $request): array
     {
         $user = $request->user();
@@ -41,12 +28,17 @@ class HandleInertiaRequests extends Middleware
                     'full_name' => $user->full_name,
                     'short_name' => $user->short_name,
                     'nickname' => $user->nickname,
-                    'position' => $user->position,
-                    'department' => $user->department,
                     'email' => $user->email,
                     'email_verified_at' => $user->email_verified_at,
                     'approved_at' => $user->approved_at,
                     'created_at' => $user->created_at,
+                    'updated_at' => $user->updated_at,
+                    // Получаем название должности и отдела из связей
+                    'position_name' => $user->position ? $user->position->name : null,
+                    'position_id' => $user->position_id,
+                    'position_level' => $user->position ? $user->position->level : null,
+                    'department_name' => $user->department ? $user->department->name : null,
+                    'department_id' => $user->department_id,
                     'role' => $user->roles->first()?->name ?? 'user',
                     'roles' => $user->getRoleNames(),
                 ] : null,

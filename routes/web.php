@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\Admin\DepartmentController;
+use App\Http\Controllers\Admin\PositionController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\EmailVerificationController;
@@ -61,4 +63,8 @@ Route::middleware(['auth', 'verified', 'approved', 'admin'])->prefix('admin')->n
     Route::post('/users/bulk-approve', [UserController::class, 'bulkApprove'])->name('users.bulk-approve');
     Route::delete('/users/bulk-destroy', [UserController::class, 'bulkDestroy'])->name('users.bulk-destroy');
     Route::get('/statistics', [UserController::class, 'statistics'])->name('statistics');
+    Route::resource('departments', DepartmentController::class);
+    Route::resource('positions', PositionController::class);
 });
+
+Route::get('/api/positions/by-department/{departmentId}', [PositionController::class, 'getByDepartment']);

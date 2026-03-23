@@ -3,8 +3,11 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Department;
+use App\Models\Position;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
 class UserController extends Controller
@@ -46,9 +49,17 @@ class UserController extends Controller
         // Сортировка
         $sortBy = $request->get('sort_by', 'created_at');
         $sortOrder = $request->get('sort_order', 'desc');
-        $query->orderBy($sortBy, $sortOrder);
 
-        $users = $query->with('roles')
+        // Проверяем, что поле сортировки существует
+        $allowedSortFields = ['created_at', 'last_name', 'first_name', 'email', 'nickname'];
+        if (in_array($sortBy, $allowedSortFields)) {
+            $query->orderBy($sortBy, $sortOrder);
+        } else {
+            $query->orderBy('created_at', 'desc');
+        }
+
+        // Загружаем связанные модели
+        $users = $query->with(['roles', 'department', 'position'])
             ->select([
                 'id',
                 'last_name',
@@ -56,11 +67,12 @@ class UserController extends Controller
                 'patronymic',
                 'nickname',
                 'email',
-                'position',
-                'department',
+                'department_id',
+                'position_id',
                 'approved_at',
                 'email_verified_at',
-                'created_at'
+                'created_at',
+                'updated_at'
             ])
             ->paginate($request->get('per_page', 15))
             ->through(function ($user) {
@@ -72,8 +84,10 @@ class UserController extends Controller
                     'patronymic' => $user->patronymic,
                     'nickname' => $user->nickname,
                     'email' => $user->email,
-                    'position' => $user->position,
-                    'department' => $user->department,
+                    'position_name' => $user->position?->name,
+                    'position_id' => $user->position_id,
+                    'department_name' => $user->department?->name,
+                    'department_id' => $user->department_id,
                     'role' => $user->roles->first()?->name ?? 'user',
                     'approved_at' => $user->approved_at,
                     'email_verified_at' => $user->email_verified_at,
@@ -209,7 +223,14 @@ class UserController extends Controller
      */
     public function show($id)
     {
-        $user = User::with('roles')->findOrFail($id);
+        $user = User::with(['roles', 'department', 'position'])->findOrFail($id);
+
+        // Получаем все отделы и должности для формы редактирования
+        $departments = Department::where('is_active', true)->orderBy('name')->get();
+        $allPositions = Position::where('is_active', true)
+            ->with('department')
+            ->orderBy('name')
+            ->get();
 
         return Inertia::render('Admin/UserShow', [
             'user' => [
@@ -221,15 +242,20 @@ class UserController extends Controller
                 'short_name' => $user->short_name,
                 'nickname' => $user->nickname,
                 'email' => $user->email,
-                'position' => $user->position,
-                'department' => $user->department,
+                'position_name' => $user->position?->name,
+                'position_id' => $user->position_id,
+                'position_level' => $user->position?->level,
+                'department_name' => $user->department?->name,
+                'department_id' => $user->department_id,
                 'role' => $user->roles->first()?->name ?? 'user',
                 'roles' => $user->getRoleNames(),
                 'approved_at' => $user->approved_at,
                 'email_verified_at' => $user->email_verified_at,
                 'created_at' => $user->created_at,
                 'updated_at' => $user->updated_at,
-            ]
+            ],
+            'departments' => $departments,
+            'allPositions' => $allPositions
         ]);
     }
 
@@ -244,13 +270,18 @@ class UserController extends Controller
             'last_name' => 'required|string|max:255',
             'first_name' => 'required|string|max:255',
             'patronymic' => 'nullable|string|max:255',
-            'position' => 'required|string|max:255',
-            'department' => 'required|string|max:255',
-            'email' => 'required|email|unique:users,email,' . $id,
             'nickname' => 'required|string|max:255|unique:users,nickname,' . $id,
+            'department_id' => 'nullable|exists:departments,id',
+            'position_id' => 'nullable|exists:positions,id',
+            'email' => 'required|email|unique:users,email,' . $id,
         ]);
 
         $user->update($validated);
+
+        // Если роль передана, обновляем её
+        if ($request->has('role')) {
+            $user->syncRoles([$request->role]);
+        }
 
         return redirect()->back()->with('success', 'Данные пользователя обновлены.');
     }
@@ -270,25 +301,65 @@ class UserController extends Controller
                 'manager' => User::role('manager')->count(),
                 'user' => User::role('user')->count(),
             ],
-            'by_department' => User::whereNotNull('approved_at')
-                ->select('department')
-                ->selectRaw('count(*) as count')
-                ->groupBy('department')
-                ->get()
-                ->pluck('count', 'department'),
-            'recent' => User::orderBy('created_at', 'desc')
-                ->limit(5)
-                ->get(['id', 'last_name', 'first_name', 'email', 'created_at'])
-                ->map(function($user) {
-                    return [
-                        'id' => $user->id,
-                        'full_name' => $user->full_name,
-                        'email' => $user->email,
-                        'created_at' => $user->created_at,
-                    ];
-                }),
+            'by_department' => $this->getDepartmentStatistics(),
+            'recent' => $this->getRecentUsers(),
         ];
 
         return Inertia::render('Admin/Statistics', ['stats' => $stats]);
+    }
+
+    /**
+     * Получить статистику по отделам
+     */
+    private function getDepartmentStatistics()
+    {
+        // Получаем количество пользователей по отделам
+        $departmentStats = DB::table('users')
+            ->join('departments', 'users.department_id', '=', 'departments.id')
+            ->whereNotNull('users.approved_at')
+            ->select('departments.name as department_name', DB::raw('count(*) as count'))
+            ->groupBy('departments.id', 'departments.name')
+            ->get();
+
+        // Преобразуем в массив вида [название_отдела => количество]
+        $result = [];
+        foreach ($departmentStats as $stat) {
+            $result[$stat->department_name] = $stat->count;
+        }
+
+        // Добавляем отделы без сотрудников
+        $departmentsWithoutUsers = Department::whereDoesntHave('users', function($query) {
+            $query->whereNotNull('approved_at');
+        })->get();
+
+        foreach ($departmentsWithoutUsers as $dept) {
+            $result[$dept->name] = 0;
+        }
+
+        // Сортируем по названию
+        ksort($result);
+
+        return $result;
+    }
+
+    /**
+     * Получить последних зарегистрированных пользователей
+     */
+    private function getRecentUsers()
+    {
+        return User::with(['department', 'position'])
+            ->orderBy('created_at', 'desc')
+            ->limit(5)
+            ->get()
+            ->map(function($user) {
+                return [
+                    'id' => $user->id,
+                    'full_name' => $user->full_name,
+                    'email' => $user->email,
+                    'position_name' => $user->position?->name,
+                    'department_name' => $user->department?->name,
+                    'created_at' => $user->created_at,
+                ];
+            });
     }
 }

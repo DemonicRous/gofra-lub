@@ -17,11 +17,14 @@
                             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-white/20">
                                 {{ getUserRoleName(user?.role) }}
                             </span>
-                            <span v-if="user?.department" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-white/20">
-                                {{ user.department }}
+                            <span v-if="user?.department_name" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-white/20">
+                                {{ user.department_name }}
                             </span>
-                            <span v-if="user?.position" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-white/20">
-                                {{ user.position }}
+                            <span v-if="user?.position_name" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-white/20">
+                                {{ user.position_name }}
+                            </span>
+                            <span v-if="user?.position_level && !user?.position_name" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-white/20">
+                                {{ getLevelName(user.position_level) }}
                             </span>
                         </div>
                     </div>
@@ -78,11 +81,15 @@
                     <div class="space-y-3">
                         <div class="flex justify-between items-center pb-2 border-b border-gray-200 dark:border-gray-700">
                             <span class="text-gray-600 dark:text-gray-400">Должность:</span>
-                            <span class="font-medium text-gray-900 dark:text-white">{{ user?.position || '—' }}</span>
+                            <span class="font-medium text-gray-900 dark:text-white">{{ user?.position_name || user?.position || '—' }}</span>
                         </div>
                         <div class="flex justify-between items-center pb-2 border-b border-gray-200 dark:border-gray-700">
                             <span class="text-gray-600 dark:text-gray-400">Отдел:</span>
-                            <span class="font-medium text-gray-900 dark:text-white">{{ user?.department || '—' }}</span>
+                            <span class="font-medium text-gray-900 dark:text-white">{{ user?.department_name || user?.department || '—' }}</span>
+                        </div>
+                        <div v-if="user?.position_level" class="flex justify-between items-center pb-2 border-b border-gray-200 dark:border-gray-700">
+                            <span class="text-gray-600 dark:text-gray-400">Уровень:</span>
+                            <span class="font-medium text-gray-900 dark:text-white">{{ getLevelName(user.position_level) }}</span>
                         </div>
                         <div class="flex justify-between items-center">
                             <span class="text-gray-600 dark:text-gray-400">Роль:</span>
@@ -278,6 +285,18 @@ import AppLayout from '@/Layouts/AppLayout.vue'
 const page = usePage()
 const user = computed(() => page.props.auth?.user ?? null)
 const stats = computed(() => page.props.stats ?? null)
+
+// Получение уровня должности на русском
+const getLevelName = (level) => {
+    const levels = {
+        'junior': 'Младший специалист',
+        'middle': 'Специалист',
+        'senior': 'Старший специалист',
+        'lead': 'Ведущий специалист',
+        'head': 'Руководитель'
+    }
+    return levels[level] || level
+}
 
 // Проверка ролей пользователя
 const isAdmin = computed(() => {

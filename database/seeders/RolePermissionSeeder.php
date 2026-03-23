@@ -6,6 +6,8 @@ use Illuminate\Database\Seeder;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\Models\Permission;
 use App\Models\User;
+use App\Models\Department;
+use App\Models\Position;
 use Spatie\Permission\PermissionRegistrar;
 
 class RolePermissionSeeder extends Seeder
@@ -15,10 +17,8 @@ class RolePermissionSeeder extends Seeder
         // Сброс кэша
         app()[PermissionRegistrar::class]->forgetCachedPermissions();
 
-        // Создание разрешений (только если не существуют)
+        // Создание разрешений
         $approveUsersPermission = Permission::firstOrCreate(['name' => 'approve users', 'guard_name' => 'web']);
-
-        // Дополнительные разрешения (опционально)
         $manageUsersPermission = Permission::firstOrCreate(['name' => 'manage users', 'guard_name' => 'web']);
         $viewUsersPermission = Permission::firstOrCreate(['name' => 'view users', 'guard_name' => 'web']);
 
@@ -27,7 +27,7 @@ class RolePermissionSeeder extends Seeder
         $managerRole = Role::firstOrCreate(['name' => 'manager', 'guard_name' => 'web']);
         $userRole = Role::firstOrCreate(['name' => 'user', 'guard_name' => 'web']);
 
-        // Назначение разрешений администратору
+        // Назначение разрешений
         if (!$adminRole->hasPermissionTo('approve users')) {
             $adminRole->givePermissionTo($approveUsersPermission);
         }
@@ -38,15 +38,38 @@ class RolePermissionSeeder extends Seeder
             $adminRole->givePermissionTo($viewUsersPermission);
         }
 
-        // Назначение разрешений менеджеру
         if (!$managerRole->hasPermissionTo('view users')) {
             $managerRole->givePermissionTo($viewUsersPermission);
         }
 
-        // Создание администратора (если не существует)
+        // Получаем существующие отделы (не создаем новые)
+        $itDepartment = Department::where('code', 'IT')->first();
+        $hrDepartment = Department::where('code', 'HR')->first();
+        $developmentDepartment = Department::where('code', 'DEV')->first();
+        $accountingDepartment = Department::where('code', 'ACC')->first();
+
+        // Проверяем, что отделы существуют
+        if (!$itDepartment || !$hrDepartment || !$developmentDepartment || !$accountingDepartment) {
+            $this->command->error('Some departments are missing! Please run DepartmentPositionSeeder first.');
+            return;
+        }
+
+        // Получаем должности
+        $itHeadPosition = Position::where('name', 'Руководитель IT-отдела')
+            ->where('department_id', $itDepartment->id)
+            ->first();
+
+        $hrManagerPosition = Position::where('name', 'Менеджер по персоналу')
+            ->where('department_id', $hrDepartment->id)
+            ->first();
+
+        $devSpecialistPosition = Position::where('name', 'Специалист по развитию')
+            ->where('department_id', $developmentDepartment->id)
+            ->first();
+
+        // Создание администратора
         $admin = User::where('email', 'admin@gofralub.ru')->first();
         if (!$admin) {
-            // Генерируем никнейм из email
             $nickname = User::generateNicknameFromEmail('admin@gofralub.ru');
 
             $admin = User::create([
@@ -54,8 +77,8 @@ class RolePermissionSeeder extends Seeder
                 'first_name' => 'Системный',
                 'patronymic' => null,
                 'nickname' => $nickname,
-                'position' => 'Главный администратор',
-                'department' => 'IT-отдел',
+                'department_id' => $itDepartment->id,
+                'position_id' => $itHeadPosition ? $itHeadPosition->id : null,
                 'email' => 'admin@gofralub.ru',
                 'password' => bcrypt('password'),
                 'email_verified_at' => now(),
@@ -63,11 +86,13 @@ class RolePermissionSeeder extends Seeder
             ]);
             $admin->assignRole('admin');
             $this->command->info('Admin user created successfully!');
+        } else {
+            $this->command->info('Admin user already exists, skipping...');
         }
 
-        // Создание тестового менеджера (опционально)
+        // Создание тестового менеджера
         $manager = User::where('email', 'manager@gofralub.ru')->first();
-        if (!$manager) {
+        if (!$manager && $hrManagerPosition) {
             $nickname = User::generateNicknameFromEmail('manager@gofralub.ru');
 
             $manager = User::create([
@@ -75,20 +100,22 @@ class RolePermissionSeeder extends Seeder
                 'first_name' => 'Тестовый',
                 'patronymic' => 'Тестович',
                 'nickname' => $nickname,
-                'position' => 'Руководитель отдела',
-                'department' => 'Отдел кадров',
-                'email' => 'manager@sybox.ru',
+                'department_id' => $hrDepartment->id,
+                'position_id' => $hrManagerPosition->id,
+                'email' => 'manager@gofralub.ru',
                 'password' => bcrypt('password'),
                 'email_verified_at' => now(),
                 'approved_at' => now(),
             ]);
             $manager->assignRole('manager');
             $this->command->info('Manager user created successfully!');
+        } elseif ($manager) {
+            $this->command->info('Manager user already exists, skipping...');
         }
 
-        // Создание тестового пользователя (опционально)
+        // Создание тестового пользователя
         $testUser = User::where('email', 'user@yandex.ru')->first();
-        if (!$testUser) {
+        if (!$testUser && $devSpecialistPosition) {
             $nickname = User::generateNicknameFromEmail('user@yandex.ru');
 
             $testUser = User::create([
@@ -96,20 +123,22 @@ class RolePermissionSeeder extends Seeder
                 'first_name' => 'Тестовый',
                 'patronymic' => 'Тестович',
                 'nickname' => $nickname,
-                'position' => 'Сотрудник',
-                'department' => 'Бухгалтерия',
+                'department_id' => $developmentDepartment->id,
+                'position_id' => $devSpecialistPosition->id,
                 'email' => 'user@yandex.ru',
                 'password' => bcrypt('password'),
                 'email_verified_at' => now(),
-                'approved_at' => now(), // Одобрен автоматически
+                'approved_at' => now(),
             ]);
             $testUser->assignRole('user');
             $this->command->info('Test user created successfully!');
+        } elseif ($testUser) {
+            $this->command->info('Test user already exists, skipping...');
         }
 
-        // Создание пользователя, ожидающего одобрения (опционально)
+        // Создание пользователя, ожидающего одобрения
         $pendingUser = User::where('email', 'pending@yandex.ru')->first();
-        if (!$pendingUser) {
+        if (!$pendingUser && $devSpecialistPosition) {
             $nickname = User::generateNicknameFromEmail('pending@yandex.ru');
 
             $pendingUser = User::create([
@@ -117,22 +146,27 @@ class RolePermissionSeeder extends Seeder
                 'first_name' => 'Пользователь',
                 'patronymic' => null,
                 'nickname' => $nickname,
-                'position' => 'Стажер',
-                'department' => 'Отдел разработки',
-                'email' => 'pending@uralkarton.ru',
+                'department_id' => $developmentDepartment->id,
+                'position_id' => $devSpecialistPosition->id,
+                'email' => 'pending@yandex.ru',
                 'password' => bcrypt('password'),
                 'email_verified_at' => now(),
-                'approved_at' => null, // Не одобрен
+                'approved_at' => null,
             ]);
             $pendingUser->assignRole('user');
             $this->command->info('Pending user created successfully!');
+        } elseif ($pendingUser) {
+            $this->command->info('Pending user already exists, skipping...');
         }
 
+        $this->command->info('=====================================');
         $this->command->info('Roles and permissions seeded successfully!');
+        $this->command->info('=====================================');
         $this->command->info('Available users:');
         $this->command->info('Admin: admin@gofralub.ru / password');
         $this->command->info('Manager: manager@gofralub.ru / password');
         $this->command->info('User: user@yandex.ru / password');
         $this->command->info('Pending: pending@yandex.ru / password (awaiting approval)');
+        $this->command->info('=====================================');
     }
 }

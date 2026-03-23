@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Models\Department;
+use App\Models\Position;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -18,7 +20,7 @@ class AuthController extends Controller
         return Inertia::render('Auth/Login');
     }
 
-    // Обработка входа (поддерживает login по email или nickname)
+    // Обработка входа
     public function login(Request $request)
     {
         $request->validate([
@@ -26,7 +28,6 @@ class AuthController extends Controller
             'password' => 'required|string',
         ]);
 
-        // Определяем, что ввел пользователь: email или nickname
         $loginField = filter_var($request->login, FILTER_VALIDATE_EMAIL) ? 'email' : 'nickname';
 
         $credentials = [
@@ -64,7 +65,20 @@ class AuthController extends Controller
     // Отображение формы регистрации
     public function showRegister()
     {
-        return Inertia::render('Auth/Register');
+        $departments = Department::where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        // Получаем все активные должности с информацией об отделе
+        $allPositions = Position::where('is_active', true)
+            ->with('department')
+            ->orderBy('name')
+            ->get(['id', 'name', 'level', 'department_id']);
+
+        return Inertia::render('Auth/Register', [
+            'departments' => $departments,
+            'allPositions' => $allPositions
+        ]);
     }
 
     // Обработка регистрации
@@ -74,8 +88,8 @@ class AuthController extends Controller
             'last_name' => 'required|string|max:255',
             'first_name' => 'required|string|max:255',
             'patronymic' => 'nullable|string|max:255',
-            'position' => 'required|string|max:255',
-            'department' => 'required|string|max:255',
+            'department_id' => 'required|exists:departments,id',
+            'position_id' => 'required|exists:positions,id',
             'email' => [
                 'required',
                 'string',
@@ -83,7 +97,7 @@ class AuthController extends Controller
                 'max:255',
                 'unique:users',
                 function ($attribute, $value, $fail) {
-                    $allowedDomains = ['@sybox.ru', '@uralkarton.ru', '@yandex.ru', '@gmail.com'];
+                    $allowedDomains = ['@sybox.ru', '@uralkarton.ru', '@yandex.ru'];
                     $isValid = false;
 
                     foreach ($allowedDomains as $domain) {
@@ -101,7 +115,17 @@ class AuthController extends Controller
             'password' => 'required|string|min:8|confirmed',
         ]);
 
-        // Генерируем никнейм из email
+        // Проверяем, что должность принадлежит выбранному отделу
+        $position = Position::where('id', $request->position_id)
+            ->where('department_id', $request->department_id)
+            ->first();
+
+        if (!$position) {
+            throw ValidationException::withMessages([
+                'position_id' => 'Выбранная должность не принадлежит указанному отделу.',
+            ]);
+        }
+
         $nickname = User::generateNicknameFromEmail($request->email);
 
         $user = User::create([
@@ -109,8 +133,8 @@ class AuthController extends Controller
             'first_name' => $request->first_name,
             'patronymic' => $request->patronymic,
             'nickname' => $nickname,
-            'position' => $request->position,
-            'department' => $request->department,
+            'department_id' => $request->department_id,
+            'position_id' => $request->position_id,
             'email' => $request->email,
             'password' => Hash::make($request->password),
         ]);
