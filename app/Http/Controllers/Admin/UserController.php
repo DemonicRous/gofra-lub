@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Department;
 use App\Models\Position;
 use App\Models\User;
+use App\Notifications\AccountApproved;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -137,6 +138,9 @@ class UserController extends Controller
         if (!$user->hasRole('user')) {
             $user->assignRole('user');
         }
+
+        // Отправляем уведомление об одобрении
+        $user->notify(new AccountApproved());
 
         return redirect()->back()->with('success', "Пользователь {$user->full_name} успешно одобрен.");
     }

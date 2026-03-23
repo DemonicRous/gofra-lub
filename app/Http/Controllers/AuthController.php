@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use App\Models\Department;
 use App\Models\Position;
+use App\Notifications\VerifyEmail;
+use App\Notifications\WelcomeUser;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -97,7 +99,7 @@ class AuthController extends Controller
                 'max:255',
                 'unique:users',
                 function ($attribute, $value, $fail) {
-                    $allowedDomains = ['@sybox.ru', '@uralkarton.ru', '@yandex.ru'];
+                    $allowedDomains = ['@sybox.ru', '@uralkarton.ru', '@yandex.ru', '@gmail.com'];
                     $isValid = false;
 
                     foreach ($allowedDomains as $domain) {
@@ -139,7 +141,10 @@ class AuthController extends Controller
             'password' => Hash::make($request->password),
         ]);
 
-        event(new Registered($user));
+        $user->notify(new VerifyEmail());
+
+        // Отправляем событие регистрации (оно запустит отправку письма для подтверждения email)
+        // event(new Registered($user));
 
         Auth::login($user);
         return redirect()->route('verification.notice')->with('success', 'Регистрация успешна! Подтвердите email.');
