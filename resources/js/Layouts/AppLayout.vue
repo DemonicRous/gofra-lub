@@ -1,7 +1,6 @@
 <script setup>
 
-import AppHeader from "@/Components/Navigation/AppHeader.vue";
-import AppFooter from "@/Components/Navigation/AppFooter.vue";
+import AppHeader from "@/Layouts/AppHeader.vue";
 </script>
 
 <template>
@@ -9,8 +8,6 @@ import AppFooter from "@/Components/Navigation/AppFooter.vue";
     <app-header/>
 
     <slot/>
-
-    <app-footer/>
 
 </template>
 

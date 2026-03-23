@@ -9,3 +9,74 @@
     --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
 }
+
+/* Базовая настройка темы */
+@theme {
+    /* Цвета */
+    --color-primary-50: #eff6ff;
+    --color-primary-100: #dbeafe;
+    --color-primary-200: #bfdbfe;
+    --color-primary-300: #93c5fd;
+    --color-primary-400: #60a5fa;
+    --color-primary-500: #3b82f6;
+    --color-primary-600: #2563eb;
+    --color-primary-700: #1d4ed8;
+    --color-primary-800: #1e40af;
+    --color-primary-900: #1e3a8a;
+
+    /* Анимации */
+    --animate-fade-in: fadeIn 0.2s ease-in-out;
+    --animate-slide-down: slideDown 0.2s ease-out;
+
+    @keyframes fadeIn {
+        0% { opacity: 0; }
+        100% { opacity: 1; }
+    }
+
+    @keyframes slideDown {
+        0% { transform: translateY(-10px); opacity: 0; }
+        100% { transform: translateY(0); opacity: 1; }
+    }
+}
+
+/* Темная тема */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Дополнительные стили для темной темы */
+@layer base {
+    body {
+        @apply bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100;
+    }
+}
+
+/* Кастомные стили для скроллбара (опционально) */
+@layer utilities {
+    .scrollbar-custom {
+        scrollbar-width: thin;
+    }
+
+    .scrollbar-custom::-webkit-scrollbar {
+        width: 4px;
+    }
+
+    .scrollbar-custom::-webkit-scrollbar-track {
+        background: #f1f1f1;
+    }
+
+    .scrollbar-custom::-webkit-scrollbar-thumb {
+        background: #888;
+        border-radius: 2px;
+    }
+
+    .scrollbar-custom::-webkit-scrollbar-thumb:hover {
+        background: #555;
+    }
+
+    .dark .scrollbar-custom::-webkit-scrollbar-track {
+        background: #2d3748;
+    }
+
+    .dark .scrollbar-custom::-webkit-scrollbar-thumb {
+        background: #4a5568;
+    }
+}
