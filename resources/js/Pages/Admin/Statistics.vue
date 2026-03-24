@@ -4,7 +4,20 @@
 
         <div class="container mx-auto px-4 py-8">
             <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 transition-colors duration-300">
-                <h1 class="text-2xl font-bold mb-6 text-gray-900 dark:text-white">Статистика системы</h1>
+
+                <div class="py-4">
+                    <div class="flex items-center justify-between flex-wrap gap-4">
+                        <div>
+                            <h1 class="text-2xl font-bold mb-6 text-gray-900 dark:text-white">Статистика системы</h1>
+                        </div>
+                        <Link :href="route('dashboard')" class="inline-flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+                            </svg>
+                            Вернуться в панель управления
+                        </Link>
+                    </div>
+                </div>
 
                 <!-- Общая статистика -->
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -165,7 +178,7 @@
 </template>
 
 <script setup>
-import { Head } from '@inertiajs/vue3'
+import {Head, Link} from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 
 const props = defineProps({
