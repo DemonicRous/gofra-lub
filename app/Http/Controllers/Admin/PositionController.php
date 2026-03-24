@@ -40,8 +40,7 @@ class PositionController extends Controller
             'description' => 'nullable|string',
             'department_id' => 'required|exists:departments,id',
             'level' => 'required|in:junior,middle,senior,lead,head',
-            'salary_min' => 'nullable|numeric|min:0',
-            'salary_max' => 'nullable|numeric|min:0|gt:salary_min',
+            'is_active' => 'boolean',
         ]);
 
         Position::create($validated);
@@ -57,8 +56,6 @@ class PositionController extends Controller
             'description' => 'nullable|string',
             'department_id' => 'required|exists:departments,id',
             'level' => 'required|in:junior,middle,senior,lead,head',
-            'salary_min' => 'nullable|numeric|min:0',
-            'salary_max' => 'nullable|numeric|min:0|gt:salary_min',
             'is_active' => 'boolean',
         ]);
 

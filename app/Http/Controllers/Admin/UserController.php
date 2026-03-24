@@ -366,4 +366,42 @@ class UserController extends Controller
                 ];
             });
     }
+
+    /**
+     * Получение списка пользователей для выбора руководителя
+     * Только пользователи с ролью lead или head, подтвержденным email и одобренные
+     */
+    public function getLeaders(Request $request)
+    {
+        // Получаем ID должностей с уровнем head или lead
+        $leaderPositionIds = Position::whereIn('level', ['head', 'lead'])
+            ->where('is_active', true)
+            ->pluck('id');
+
+        $users = User::with(['department', 'position'])
+            ->whereNotNull('email_verified_at')
+            ->whereNotNull('approved_at')
+            ->whereIn('position_id', $leaderPositionIds)
+            ->orderBy('last_name')
+            ->orderBy('first_name')
+            ->get(['id', 'last_name', 'first_name', 'patronymic', 'position_id', 'department_id']);
+
+        // Форматируем данные для удобного отображения
+        $formattedUsers = $users->map(function ($user) {
+            return [
+                'id' => $user->id,
+                'full_name' => $user->full_name,
+                'short_name' => $user->short_name,
+                'position_name' => $user->position?->name,
+                'position_level' => $user->position?->level,
+                'department_name' => $user->department?->name,
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'users' => $formattedUsers
+        ]);
+    }
+
 }

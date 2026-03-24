@@ -63,6 +63,10 @@ Route::middleware(['auth', 'verified', 'approved', 'admin'])->prefix('admin')->n
     Route::post('/users/bulk-approve', [UserController::class, 'bulkApprove'])->name('users.bulk-approve');
     Route::delete('/users/bulk-destroy', [UserController::class, 'bulkDestroy'])->name('users.bulk-destroy');
     Route::get('/statistics', [UserController::class, 'statistics'])->name('statistics');
+
+    // Новый маршрут для получения руководителей
+    Route::get('/leaders', [UserController::class, 'getLeaders'])->name('users.leaders');
+
     Route::resource('departments', DepartmentController::class);
     Route::resource('positions', PositionController::class);
 });

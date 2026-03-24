@@ -51,8 +51,8 @@ return new class extends Migration
                     ->cascadeOnDelete();
                 $table->enum('level', ['junior', 'middle', 'senior', 'lead', 'head'])
                     ->default('middle');
-                $table->decimal('salary_min', 10, 2)->nullable();
-                $table->decimal('salary_max', 10, 2)->nullable();
+                //$table->decimal('salary_min', 10, 2)->nullable();
+                //$table->decimal('salary_max', 10, 2)->nullable();
                 $table->boolean('is_active')->default(true);
                 $table->timestamps();
             });

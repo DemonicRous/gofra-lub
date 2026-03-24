@@ -15,15 +15,11 @@ class Position extends Model
         'description',
         'department_id',
         'level',
-        'salary_min',
-        'salary_max',
         'is_active'
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
-        'salary_min' => 'decimal:2',
-        'salary_max' => 'decimal:2',
     ];
 
     // Связь с отделом
@@ -57,12 +53,4 @@ class Position extends Model
         return $levels[$this->level] ?? $this->level;
     }
 
-    // Получить диапазон зарплаты
-    public function getSalaryRangeAttribute()
-    {
-        if ($this->salary_min && $this->salary_max) {
-            return number_format($this->salary_min, 2) . ' - ' . number_format($this->salary_max, 2) . ' ₽';
-        }
-        return 'Не указано';
-    }
 }

@@ -42,7 +42,7 @@ class RolePermissionSeeder extends Seeder
             $managerRole->givePermissionTo($viewUsersPermission);
         }
 
-        // Получаем существующие отделы (не создаем новые)
+        // Получаем существующие отделы
         $itDepartment = Department::where('code', 'IT')->first();
         $hrDepartment = Department::where('code', 'HR')->first();
         $developmentDepartment = Department::where('code', 'DEV')->first();
@@ -67,6 +67,10 @@ class RolePermissionSeeder extends Seeder
             ->where('department_id', $developmentDepartment->id)
             ->first();
 
+        $accHeadPosition = Position::where('name', 'Главный бухгалтер')
+            ->where('department_id', $accountingDepartment->id)
+            ->first();
+
         // Создание администратора
         $admin = User::where('email', 'admin@gofralub.ru')->first();
         if (!$admin) {
@@ -88,6 +92,48 @@ class RolePermissionSeeder extends Seeder
             $this->command->info('Admin user created successfully!');
         } else {
             $this->command->info('Admin user already exists, skipping...');
+        }
+
+        // Создание руководителя IT отдела
+        $itHead = User::where('email', 'it.head@sybox.ru')->first();
+        if (!$itHead && $itHeadPosition) {
+            $nickname = User::generateNicknameFromEmail('it.head@sybox.ru');
+
+            $itHead = User::create([
+                'last_name' => 'Иванов',
+                'first_name' => 'Иван',
+                'patronymic' => 'Иванович',
+                'nickname' => $nickname,
+                'department_id' => $itDepartment->id,
+                'position_id' => $itHeadPosition->id,
+                'email' => 'it.head@sybox.ru',
+                'password' => bcrypt('password'),
+                'email_verified_at' => now(),
+                'approved_at' => now(),
+            ]);
+            $itHead->assignRole('user');
+            $this->command->info('IT Head created successfully!');
+        }
+
+        // Создание руководителя бухгалтерии
+        $accHead = User::where('email', 'acc.head@sybox.ru')->first();
+        if (!$accHead && $accHeadPosition) {
+            $nickname = User::generateNicknameFromEmail('acc.head@sybox.ru');
+
+            $accHead = User::create([
+                'last_name' => 'Петрова',
+                'first_name' => 'Елена',
+                'patronymic' => 'Сергеевна',
+                'nickname' => $nickname,
+                'department_id' => $accountingDepartment->id,
+                'position_id' => $accHeadPosition->id,
+                'email' => 'acc.head@sybox.ru',
+                'password' => bcrypt('password'),
+                'email_verified_at' => now(),
+                'approved_at' => now(),
+            ]);
+            $accHead->assignRole('user');
+            $this->command->info('Accounting Head created successfully!');
         }
 
         // Создание тестового менеджера
@@ -164,6 +210,8 @@ class RolePermissionSeeder extends Seeder
         $this->command->info('=====================================');
         $this->command->info('Available users:');
         $this->command->info('Admin: admin@gofralub.ru / password');
+        $this->command->info('IT Head: it.head@sybox.ru / password (Руководитель IT-отдела)');
+        $this->command->info('Accounting Head: acc.head@sybox.ru / password (Главный бухгалтер)');
         $this->command->info('Manager: manager@gofralub.ru / password');
         $this->command->info('User: user@yandex.ru / password');
         $this->command->info('Pending: pending@yandex.ru / password (awaiting approval)');

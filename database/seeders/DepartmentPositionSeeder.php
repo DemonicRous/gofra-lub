@@ -53,7 +53,7 @@ class DepartmentPositionSeeder extends Seeder
 
             $this->command->info("Department '{$department->name}' processed");
 
-            // Должности для каждого отдела
+            // Должности для каждого отдела (без зарплат)
             $positions = match ($deptData['code']) {
                 'IT' => [
                     ['name' => 'Руководитель IT-отдела', 'level' => 'head', 'code' => 'IT_HEAD'],

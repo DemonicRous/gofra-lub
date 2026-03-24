@@ -249,28 +249,93 @@
                     </svg>
                     Администрирование
                 </h2>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <!-- Управление пользователями -->
                     <Link :href="route('admin.users')"
-                          class="flex items-center justify-between p-4 bg-purple-50 dark:bg-purple-900/20 hover:bg-purple-100 dark:hover:bg-purple-900/30 rounded-lg transition">
+                          class="flex items-center justify-between p-4 bg-purple-50 dark:bg-purple-900/20 hover:bg-purple-100 dark:hover:bg-purple-900/30 rounded-lg transition group">
                         <div>
-                            <div class="font-semibold text-purple-900 dark:text-purple-300">Управление пользователями</div>
-                            <div class="text-sm text-purple-600 dark:text-purple-400">Просмотр, одобрение и управление пользователями</div>
+                            <div class="font-semibold text-purple-900 dark:text-purple-300">Пользователи</div>
+                            <div class="text-sm text-purple-600 dark:text-purple-400">Просмотр, одобрение и управление</div>
                         </div>
-                        <svg class="w-5 h-5 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg class="w-5 h-5 text-purple-600 dark:text-purple-400 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
                         </svg>
                     </Link>
 
-                    <Link :href="route('admin.statistics')"
-                          class="flex items-center justify-between p-4 bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/30 rounded-lg transition">
+                    <!-- Отделы -->
+                    <Link :href="route('admin.departments.index')"
+                          class="flex items-center justify-between p-4 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-lg transition group">
                         <div>
-                            <div class="font-semibold text-green-900 dark:text-green-300">Статистика</div>
-                            <div class="text-sm text-green-600 dark:text-green-400">Аналитика и отчеты по системе</div>
+                            <div class="font-semibold text-blue-900 dark:text-blue-300">Отделы</div>
+                            <div class="text-sm text-blue-600 dark:text-blue-400">Управление структурой компании</div>
                         </div>
-                        <svg class="w-5 h-5 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg class="w-5 h-5 text-blue-600 dark:text-blue-400 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
                         </svg>
                     </Link>
+
+                    <!-- Должности -->
+                    <Link :href="route('admin.positions.index')"
+                          class="flex items-center justify-between p-4 bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/30 rounded-lg transition group">
+                        <div>
+                            <div class="font-semibold text-green-900 dark:text-green-300">Должности</div>
+                            <div class="text-sm text-green-600 dark:text-green-400">Управление должностями</div>
+                        </div>
+                        <svg class="w-5 h-5 text-green-600 dark:text-green-400 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                        </svg>
+                    </Link>
+
+                    <!-- Статистика -->
+                    <Link :href="route('admin.statistics')"
+                          class="flex items-center justify-between p-4 bg-orange-50 dark:bg-orange-900/20 hover:bg-orange-100 dark:hover:bg-orange-900/30 rounded-lg transition group">
+                        <div>
+                            <div class="font-semibold text-orange-900 dark:text-orange-300">Статистика</div>
+                            <div class="text-sm text-orange-600 dark:text-orange-400">Аналитика и отчеты</div>
+                        </div>
+                        <svg class="w-5 h-5 text-orange-600 dark:text-orange-400 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                        </svg>
+                    </Link>
+                </div>
+
+                <!-- Дополнительная информация для администратора -->
+                <div class="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-sm text-gray-600 dark:text-gray-400">Всего отделов</span>
+                                <span class="text-lg font-bold text-blue-600 dark:text-blue-400">{{ stats?.totalDepartments || 0 }}</span>
+                            </div>
+                            <div class="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
+                                <div class="bg-blue-600 rounded-full h-2 transition-all duration-300"
+                                     :style="{ width: `${stats?.totalDepartments ? Math.min((stats.totalDepartments / 20) * 100, 100) : 0}%` }"></div>
+                            </div>
+                        </div>
+
+                        <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-sm text-gray-600 dark:text-gray-400">Всего должностей</span>
+                                <span class="text-lg font-bold text-green-600 dark:text-green-400">{{ stats?.totalPositions || 0 }}</span>
+                            </div>
+                            <div class="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
+                                <div class="bg-green-600 rounded-full h-2 transition-all duration-300"
+                                     :style="{ width: `${stats?.totalPositions ? Math.min((stats.totalPositions / 50) * 100, 100) : 0}%` }"></div>
+                            </div>
+                        </div>
+
+                        <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-sm text-gray-600 dark:text-gray-400">Активность системы</span>
+                                <span class="text-lg font-bold text-purple-600 dark:text-purple-400">{{ stats?.activePercentage || 0 }}%</span>
+                            </div>
+                            <div class="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
+                                <div class="bg-purple-600 rounded-full h-2 transition-all duration-300"
+                                     :style="{ width: `${stats?.activePercentage || 0}%` }"></div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -344,3 +409,35 @@ const logout = () => {
     }
 }
 </script>
+
+<style scoped>
+/* Плавные переходы для карточек */
+.bg-gradient-to-r {
+    transition: transform 0.2s ease;
+}
+
+.bg-gradient-to-r:hover {
+    transform: translateY(-2px);
+}
+
+/* Анимация для кнопок в админ-панели */
+.group:hover .group-hover\:translate-x-1 {
+    transform: translateX(0.25rem);
+}
+
+/* Плавное появление */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.bg-white, .bg-gray-800 {
+    animation: fadeIn 0.3s ease-out;
+}
+</style>
