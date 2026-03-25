@@ -254,7 +254,7 @@ class UserController extends Controller
                 'role' => $user->roles->first()?->name ?? 'user',
                 'roles' => $user->getRoleNames(),
                 'approved_at' => $user->approved_at,
-                'email_verified_at' => $user->email_verified_at,
+                'email_verified_at' => $user->email_verified_at, // Теперь это будет null для неподтвержденных
                 'created_at' => $user->created_at,
                 'updated_at' => $user->updated_at,
             ],

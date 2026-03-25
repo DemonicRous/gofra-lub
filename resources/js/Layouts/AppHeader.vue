@@ -62,6 +62,10 @@ const isActiveDashboard = () => {
     return currentUrl.value === '/dashboard'
 }
 
+const isActiveTodos = () => {
+    return currentUrl.value.startsWith('/todos')
+}
+
 const isActiveAdminUsers = () => {
     return currentUrl.value === '/admin/users'
 }
@@ -136,6 +140,18 @@ onUnmounted(() => {
                             }"
                         >
                             Панель управления
+                        </Link>
+
+                        <!-- Задачи -->
+                        <Link
+                            :href="route('todos.index')"
+                            class="relative px-1 py-2 text-gray-700 dark:text-gray-300 transition-all duration-200 hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer"
+                            :class="{
+                                'text-blue-600 dark:text-blue-400 font-semibold': isActiveTodos(),
+                                'after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-gradient-to-r after:from-blue-500 after:to-blue-600 after:rounded-full after:transition-all after:duration-300': isActiveTodos()
+                            }"
+                        >
+                            Задачи
                         </Link>
 
                         <!-- Выпадающее меню администрирования с исправленным зазором -->
@@ -348,6 +364,24 @@ onUnmounted(() => {
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"></path>
                                     </svg>
                                     <span>Панель управления</span>
+                                </div>
+                            </Link>
+
+                            <!-- Задачи (мобильное меню) -->
+                            <Link
+                                :href="route('todos.index')"
+                                class="px-4 py-3 rounded-lg transition cursor-pointer"
+                                :class="{
+                                    'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-semibold': isActiveTodos(),
+                                    'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800': !isActiveTodos()
+                                }"
+                                @click="closeMenu"
+                            >
+                                <div class="flex items-center space-x-3">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                                    </svg>
+                                    <span>Задачи</span>
                                 </div>
                             </Link>
 

@@ -15,11 +15,10 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // User::factory(10)->create();
+        // Важно: сначала создаем отделы и должности
+        $this->call(DepartmentPositionSeeder::class);
 
-        $this->call([
-            DepartmentPositionSeeder::class,
-            RolePermissionSeeder::class,
-        ]);
+        // Затем создаем роли, разрешения и пользователей
+        $this->call(RolePermissionSeeder::class);
     }
 }

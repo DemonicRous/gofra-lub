@@ -24,6 +24,7 @@ class User extends Authenticatable
         'email',
         'password',
         'approved_at',
+        'email_verified_at',
     ];
 
     protected $hidden = [
@@ -55,6 +56,11 @@ class User extends Authenticatable
     public function isApproved(): bool
     {
         return $this->approved_at !== null;
+    }
+
+    public function hasVerifiedEmail()
+    {
+        return !is_null($this->email_verified_at);
     }
 
     public static function generateNicknameFromEmail(string $email): string

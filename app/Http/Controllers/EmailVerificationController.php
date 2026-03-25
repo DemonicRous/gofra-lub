@@ -25,19 +25,23 @@ class EmailVerificationController extends Controller
     {
         $user = \App\Models\User::findOrFail($id);
 
+        // Проверяем хеш
         if (!hash_equals((string) $hash, sha1($user->getEmailForVerification()))) {
             return redirect()->route('login')->with('error', 'Неверная ссылка подтверждения.');
         }
 
+        // Проверяем, не подтвержден ли уже email
         if ($user->hasVerifiedEmail()) {
-            return redirect()->route('dashboard')->with('info', 'Email уже подтвержден.');
+            return redirect()->route('login')->with('info', 'Email уже подтвержден. Войдите в систему.');
         }
 
+        // Подтверждаем email
         if ($user->markEmailAsVerified()) {
             event(new Verified($user));
         }
 
-        return redirect()->route('dashboard')->with('success', 'Email успешно подтвержден!');
+        // Отправляем уведомление о необходимости одобрения аккаунта
+        return redirect()->route('login')->with('success', 'Email успешно подтвержден! Теперь дождитесь одобрения аккаунта администратором.');
     }
 
     /**
@@ -45,11 +49,13 @@ class EmailVerificationController extends Controller
      */
     public function resend(Request $request)
     {
-        if ($request->user()->hasVerifiedEmail()) {
+        $user = $request->user();
+
+        if ($user->hasVerifiedEmail()) {
             return redirect()->route('dashboard');
         }
 
-        $request->user()->sendEmailVerificationNotification();
+        $user->sendEmailVerificationNotification();
 
         return back()->with('success', 'Ссылка для подтверждения отправлена на ваш email.');
     }

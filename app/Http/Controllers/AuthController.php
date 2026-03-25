@@ -139,6 +139,8 @@ class AuthController extends Controller
             'position_id' => $request->position_id,
             'email' => $request->email,
             'password' => Hash::make($request->password),
+            'email_verified_at' => null, // Явно устанавливаем null
+            'approved_at' => null, // Явно устанавливаем null
         ]);
 
         $user->notify(new VerifyEmail());

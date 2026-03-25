@@ -72,3 +72,23 @@ Route::middleware(['auth', 'verified', 'approved', 'admin'])->prefix('admin')->n
 });
 
 Route::get('/api/positions/by-department/{departmentId}', [PositionController::class, 'getByDepartment']);
+
+// Маршруты для задач (TO-DO)
+Route::middleware(['auth', 'verified', 'approved'])->prefix('todos')->name('todos.')->group(function () {
+    Route::get('/', [App\Http\Controllers\TodoController::class, 'index'])->name('index');
+    Route::post('/', [App\Http\Controllers\TodoController::class, 'store'])->name('store');
+    Route::get('/{todo}', [App\Http\Controllers\TodoController::class, 'show'])->name('show');
+    Route::put('/{todo}', [App\Http\Controllers\TodoController::class, 'update'])->name('update');
+    Route::delete('/{todo}', [App\Http\Controllers\TodoController::class, 'destroy'])->name('destroy');
+
+    // Комментарии
+    Route::post('/{todo}/comments', [App\Http\Controllers\TodoController::class, 'addComment'])->name('comments.store');
+
+    // Подзадачи
+    Route::post('/{todo}/subtasks', [App\Http\Controllers\TodoController::class, 'addSubtask'])->name('subtasks.store');
+    Route::patch('/subtasks/{subtask}', [App\Http\Controllers\TodoController::class, 'toggleSubtask'])->name('subtasks.toggle');
+
+    // Участники
+    Route::post('/{todo}/participants', [App\Http\Controllers\TodoController::class, 'addParticipant'])->name('participants.store');
+    Route::delete('/{todo}/participants/{user}', [App\Http\Controllers\TodoController::class, 'removeParticipant'])->name('participants.destroy');
+});
