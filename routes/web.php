@@ -9,6 +9,7 @@ use App\Http\Controllers\HomeController;
 use App\Http\Controllers\PasswordResetController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\TaskController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -73,22 +74,22 @@ Route::middleware(['auth', 'verified', 'approved', 'admin'])->prefix('admin')->n
 
 Route::get('/api/positions/by-department/{departmentId}', [PositionController::class, 'getByDepartment']);
 
-// Маршруты для задач (TO-DO)
-Route::middleware(['auth', 'verified', 'approved'])->prefix('todos')->name('todos.')->group(function () {
-    Route::get('/', [App\Http\Controllers\TodoController::class, 'index'])->name('index');
-    Route::post('/', [App\Http\Controllers\TodoController::class, 'store'])->name('store');
-    Route::get('/{todo}', [App\Http\Controllers\TodoController::class, 'show'])->name('show');
-    Route::put('/{todo}', [App\Http\Controllers\TodoController::class, 'update'])->name('update');
-    Route::delete('/{todo}', [App\Http\Controllers\TodoController::class, 'destroy'])->name('destroy');
+// Маршруты для задач (TO-DO) - новая версия
+Route::middleware(['auth', 'verified', 'approved'])->prefix('tasks')->name('tasks.')->group(function () {
+    Route::get('/', [App\Http\Controllers\TaskController::class, 'index'])->name('index');
+    Route::post('/', [App\Http\Controllers\TaskController::class, 'store'])->name('store');
+    Route::post('/bulk-update', [App\Http\Controllers\TaskController::class, 'bulkUpdate'])->name('bulk-update');
+    Route::get('/export', [App\Http\Controllers\TaskController::class, 'export'])->name('export');
 
-    // Комментарии
-    Route::post('/{todo}/comments', [App\Http\Controllers\TodoController::class, 'addComment'])->name('comments.store');
+    Route::get('/{task}', [App\Http\Controllers\TaskController::class, 'show'])->name('show');
+    Route::put('/{task}', [App\Http\Controllers\TaskController::class, 'update'])->name('update');
+    Route::delete('/{task}', [App\Http\Controllers\TaskController::class, 'destroy'])->name('destroy');
 
-    // Подзадачи
-    Route::post('/{todo}/subtasks', [App\Http\Controllers\TodoController::class, 'addSubtask'])->name('subtasks.store');
-    Route::patch('/subtasks/{subtask}', [App\Http\Controllers\TodoController::class, 'toggleSubtask'])->name('subtasks.toggle');
+    Route::post('/{task}/comments', [App\Http\Controllers\TaskController::class, 'addComment'])->name('comments.store');
+    Route::patch('/subtasks/{subtask}', [App\Http\Controllers\TaskController::class, 'toggleSubtask'])->name('subtasks.toggle');
+    Route::post('/{task}/subtasks', [App\Http\Controllers\TaskController::class, 'addSubtask'])->name('subtasks.store');
 
-    // Участники
-    Route::post('/{todo}/participants', [App\Http\Controllers\TodoController::class, 'addParticipant'])->name('participants.store');
-    Route::delete('/{todo}/participants/{user}', [App\Http\Controllers\TodoController::class, 'removeParticipant'])->name('participants.destroy');
+    Route::post('/tasks/{task}/subtasks', [App\Http\Controllers\TaskController::class, 'addSubtask'])->name('tasks.subtasks.store');
+    Route::patch('/tasks/subtasks/{subtask}', [App\Http\Controllers\TaskController::class, 'toggleSubtask'])->name('tasks.subtasks.toggle');
+
 });

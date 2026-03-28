@@ -63,7 +63,7 @@ const isActiveDashboard = () => {
 }
 
 const isActiveTodos = () => {
-    return currentUrl.value.startsWith('/todos')
+    return currentUrl.value.startsWith('/tasks')
 }
 
 const isActiveAdminUsers = () => {
@@ -144,7 +144,7 @@ onUnmounted(() => {
 
                         <!-- Задачи -->
                         <Link
-                            :href="route('todos.index')"
+                            :href="route('tasks.index')"
                             class="relative px-1 py-2 text-gray-700 dark:text-gray-300 transition-all duration-200 hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer"
                             :class="{
                                 'text-blue-600 dark:text-blue-400 font-semibold': isActiveTodos(),
@@ -369,7 +369,7 @@ onUnmounted(() => {
 
                             <!-- Задачи (мобильное меню) -->
                             <Link
-                                :href="route('todos.index')"
+                                :href="route('tasks.index')"
                                 class="px-4 py-3 rounded-lg transition cursor-pointer"
                                 :class="{
                                     'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-semibold': isActiveTodos(),

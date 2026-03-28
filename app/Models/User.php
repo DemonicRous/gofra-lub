@@ -1,4 +1,5 @@
 <?php
+// app/Models/User.php
 
 namespace App\Models;
 
@@ -93,6 +94,16 @@ class User extends Authenticatable
         return $shortName;
     }
 
+    // Добавляем метод для получения имени с должностью
+    public function getNameWithPositionAttribute(): string
+    {
+        $name = $this->short_name;
+        if ($this->position) {
+            $name .= " ({$this->position->name})";
+        }
+        return $name;
+    }
+
     public function sendEmailVerificationNotification()
     {
         $this->notify(new VerifyEmail());
@@ -101,5 +112,35 @@ class User extends Authenticatable
     public function sendPasswordResetNotification($token)
     {
         $this->notify(new ResetPassword($token));
+    }
+
+    // Связи для задач
+    public function tasks()
+    {
+        return $this->hasMany(Task::class, 'created_by');
+    }
+
+    public function assignedTasks()
+    {
+        return $this->hasMany(Task::class, 'assigned_to');
+    }
+
+    public function projects()
+    {
+        return $this->belongsToMany(Project::class, 'project_members')
+            ->withPivot('role')
+            ->withTimestamps();
+    }
+
+    public function ownedProjects()
+    {
+        return $this->hasMany(Project::class, 'owner_id');
+    }
+
+    public function taskParticipations()
+    {
+        return $this->belongsToMany(Task::class, 'task_participants')
+            ->withPivot('role', 'permissions')
+            ->withTimestamps();
     }
 }

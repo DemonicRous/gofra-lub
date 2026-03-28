@@ -1,4 +1,5 @@
 <?php
+// database/migrations/0001_01_01_0000001_create_initial_tables.php
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
@@ -116,146 +117,211 @@ return new class extends Migration
             }
         }
 
-        // ==================== ТАБЛИЦЫ ДЛЯ ЗАДАЧ (TO-DO) ====================
+        // ==================== НОВАЯ ОПТИМИЗИРОВАННАЯ СИСТЕМА ЗАДАЧ ====================
 
-        // 6. Создаем таблицу todos
-        if (!Schema::hasTable('todos')) {
-            Schema::create('todos', function (Blueprint $table) {
+        // 6. Удаляем старые таблицы задач, если они существуют
+        Schema::dropIfExists('todo_participants');
+        Schema::dropIfExists('todo_subtasks');
+        Schema::dropIfExists('todo_comments');
+        Schema::dropIfExists('todos');
+
+        // 7. Создаем таблицу проектов
+        if (!Schema::hasTable('projects')) {
+            Schema::create('projects', function (Blueprint $table) {
                 $table->id();
+                $table->string('name');
+                $table->text('description')->nullable();
+                $table->string('color')->default('#3B82F6');
+                $table->foreignId('owner_id')->constrained('users')->cascadeOnDelete();
+                $table->json('settings')->nullable();
+                $table->timestamps();
+                $table->softDeletes();
+
+                $table->index('owner_id');
+                $table->index('name');
+            });
+        }
+
+        // 8. Создаем оптимизированную таблицу задач
+        if (!Schema::hasTable('tasks')) {
+            Schema::create('tasks', function (Blueprint $table) {
+                $table->id();
+                $table->uuid('uuid')->unique();
+
+                // Основные поля
                 $table->string('title');
                 $table->text('description')->nullable();
+                $table->string('type')->default('task');
+                $table->string('status')->default('todo');
+                $table->string('priority')->default('medium');
 
-                // Тип задачи - все доступные типы
-                $table->enum('type', [
-                    'task', 'urgent', 'reminder', 'recurring', 'project', 'idea'
-                ])->default('task');
-
-                // Статусы - расширенные для канбан-доски
-                $table->enum('status', [
-                    'backlog', 'pending', 'in_progress', 'review', 'completed', 'cancelled'
-                ])->default('pending');
-
-                // Приоритеты
-                $table->enum('priority', ['low', 'medium', 'high', 'urgent'])->default('medium');
-
-                // Для напоминаний и срочных задач
-                $table->timestamp('reminder_at')->nullable();
-                $table->boolean('reminder_sent')->default(false);
-                $table->timestamp('urgent_notified_at')->nullable();
+                // Видимость и права доступа
+                $table->string('visibility')->default('personal');
+                $table->json('allowed_roles')->nullable();
+                $table->json('allowed_departments')->nullable();
 
                 // Сроки
-                $table->date('due_date')->nullable();
-                $table->time('due_time')->nullable();
-                $table->timestamp('completed_at')->nullable();
+                $table->timestamp('due_date')->nullable();
+                $table->timestamp('reminder_at')->nullable();
                 $table->timestamp('started_at')->nullable();
+                $table->timestamp('completed_at')->nullable();
 
-                // Для повторяющихся задач
-                $table->enum('recurring_type', ['daily', 'weekly', 'monthly', 'yearly'])->nullable();
-                $table->date('recurring_until')->nullable();
-                $table->unsignedBigInteger('parent_todo_id')->nullable();
+                // Повторяющиеся задачи
+                $table->string('recurrence_pattern')->nullable();
+                $table->json('recurrence_settings')->nullable();
+                $table->unsignedBigInteger('parent_task_id')->nullable();
 
-                // Для проектных задач
-                $table->unsignedBigInteger('project_id')->nullable();
-                $table->integer('progress')->default(0);
-
-                // Видимость
-                $table->enum('visibility', ['personal', 'department', 'company'])->default('personal');
+                // Прогресс
+                $table->unsignedTinyInteger('progress')->default(0);
+                $table->json('metadata')->nullable();
 
                 // Связи
                 $table->foreignId('created_by')->constrained('users')->cascadeOnDelete();
                 $table->foreignId('assigned_to')->nullable()->constrained('users')->nullOnDelete();
                 $table->foreignId('department_id')->nullable()->constrained('departments')->nullOnDelete();
+                $table->foreignId('project_id')->nullable()->constrained('projects')->nullOnDelete();
 
-                $table->timestamps();
-
-                // Индексы
-                $table->index(['status', 'assigned_to']);
-                $table->index(['visibility', 'department_id']);
-                $table->index(['priority', 'due_date']);
+                // Оптимизированные индексы для быстрого поиска
+                $table->index(['status', 'priority', 'due_date']);
+                $table->index(['visibility', 'created_by']);
+                $table->index(['assigned_to', 'status']);
+                $table->index(['created_by', 'status']);
+                $table->index(['department_id', 'visibility']);
+                $table->index('uuid');
+                $table->index('due_date');
                 $table->index('reminder_at');
-                $table->index('type');
-                $table->index('project_id');
-                $table->index('parent_todo_id');
-            });
-        }
 
-        // 7. Добавляем внешние ключи для само-ссылок todos
-        if (Schema::hasTable('todos')) {
-            // Внешний ключ для parent_todo_id
-            $parentTodoForeignKey = DB::select("
-                SELECT CONSTRAINT_NAME
-                FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
-                WHERE TABLE_SCHEMA = ?
-                AND TABLE_NAME = 'todos'
-                AND COLUMN_NAME = 'parent_todo_id'
-                AND REFERENCED_TABLE_NAME IS NOT NULL
-            ", [config('database.connections.mysql.database')]);
-
-            if (empty($parentTodoForeignKey)) {
-                Schema::table('todos', function (Blueprint $table) {
-                    $table->foreign('parent_todo_id')
-                        ->references('id')
-                        ->on('todos')
-                        ->nullOnDelete();
-                });
-            }
-
-            // Внешний ключ для project_id
-            $projectForeignKey = DB::select("
-                SELECT CONSTRAINT_NAME
-                FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
-                WHERE TABLE_SCHEMA = ?
-                AND TABLE_NAME = 'todos'
-                AND COLUMN_NAME = 'project_id'
-                AND REFERENCED_TABLE_NAME IS NOT NULL
-            ", [config('database.connections.mysql.database')]);
-
-            if (empty($projectForeignKey)) {
-                Schema::table('todos', function (Blueprint $table) {
-                    $table->foreign('project_id')
-                        ->references('id')
-                        ->on('todos')
-                        ->nullOnDelete();
-                });
-            }
-        }
-
-        // 8. Таблица для комментариев к задачам
-        if (!Schema::hasTable('todo_comments')) {
-            Schema::create('todo_comments', function (Blueprint $table) {
-                $table->id();
-                $table->text('content');
-                $table->foreignId('todo_id')->constrained('todos')->cascadeOnDelete();
-                $table->foreignId('user_id')->constrained('users')->cascadeOnDelete();
                 $table->timestamps();
+                $table->softDeletes();
             });
         }
 
-        // 9. Таблица для подзадач
-        if (!Schema::hasTable('todo_subtasks')) {
-            Schema::create('todo_subtasks', function (Blueprint $table) {
+        // 9. Добавляем само-ссылку для parent_task_id
+        if (Schema::hasTable('tasks') && !Schema::hasColumn('tasks', 'parent_task_id')) {
+            $parentTaskForeignKey = DB::select("
+                SELECT CONSTRAINT_NAME
+                FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
+                WHERE TABLE_SCHEMA = ?
+                AND TABLE_NAME = 'tasks'
+                AND COLUMN_NAME = 'parent_task_id'
+                AND REFERENCED_TABLE_NAME IS NOT NULL
+            ", [config('database.connections.mysql.database')]);
+
+            if (empty($parentTaskForeignKey)) {
+                Schema::table('tasks', function (Blueprint $table) {
+                    $table->foreign('parent_task_id')
+                        ->references('id')
+                        ->on('tasks')
+                        ->nullOnDelete();
+                });
+            }
+        }
+
+        // 10. Таблица участников задач
+        if (!Schema::hasTable('task_participants')) {
+            Schema::create('task_participants', function (Blueprint $table) {
+                $table->id();
+                $table->foreignId('task_id')->constrained('tasks')->cascadeOnDelete();
+                $table->foreignId('user_id')->constrained('users')->cascadeOnDelete();
+                $table->string('role')->default('participant'); // participant, reviewer, observer
+                $table->json('permissions')->nullable();
+                $table->timestamps();
+
+                $table->unique(['task_id', 'user_id']);
+                $table->index(['user_id', 'role']);
+                $table->index('task_id');
+            });
+        }
+
+        // 11. Таблица подзадач
+        if (!Schema::hasTable('task_subtasks')) {
+            Schema::create('task_subtasks', function (Blueprint $table) {
                 $table->id();
                 $table->string('title');
                 $table->boolean('is_completed')->default(false);
-                $table->foreignId('todo_id')->constrained('todos')->cascadeOnDelete();
+                $table->foreignId('task_id')->constrained('tasks')->cascadeOnDelete();
+                $table->integer('order')->default(0);
                 $table->timestamps();
+
+                $table->index(['task_id', 'is_completed']);
+                $table->index('task_id');
             });
         }
 
-        // 10. Таблица для участников общих задач
-        if (!Schema::hasTable('todo_participants')) {
-            Schema::create('todo_participants', function (Blueprint $table) {
+        // 12. Таблица комментариев
+        if (!Schema::hasTable('task_comments')) {
+            Schema::create('task_comments', function (Blueprint $table) {
                 $table->id();
-                $table->foreignId('todo_id')->constrained('todos')->cascadeOnDelete();
+                $table->text('content');
+                $table->foreignId('task_id')->constrained('tasks')->cascadeOnDelete();
                 $table->foreignId('user_id')->constrained('users')->cascadeOnDelete();
+                $table->json('mentions')->nullable();
                 $table->timestamps();
-                $table->unique(['todo_id', 'user_id']);
+
+                $table->index(['task_id', 'created_at']);
+                $table->index('user_id');
+            });
+        }
+
+        // 13. Таблица истории изменений задач
+        if (!Schema::hasTable('task_histories')) {
+            Schema::create('task_histories', function (Blueprint $table) {
+                $table->id();
+                $table->foreignId('task_id')->constrained('tasks')->cascadeOnDelete();
+                $table->foreignId('user_id')->constrained('users')->cascadeOnDelete();
+                $table->string('field');
+                $table->text('old_value')->nullable();
+                $table->text('new_value')->nullable();
+                $table->timestamps();
+
+                $table->index(['task_id', 'created_at']);
+                $table->index('user_id');
+            });
+        }
+
+        // 14. Таблица тегов
+        if (!Schema::hasTable('tags')) {
+            Schema::create('tags', function (Blueprint $table) {
+                $table->id();
+                $table->string('name')->unique();
+                $table->string('color')->default('#3B82F6');
+                $table->timestamps();
+
+                $table->index('name');
+            });
+        }
+
+        // 15. Связующая таблица задач и тегов
+        if (!Schema::hasTable('task_tag')) {
+            Schema::create('task_tag', function (Blueprint $table) {
+                $table->id();
+                $table->foreignId('task_id')->constrained('tasks')->cascadeOnDelete();
+                $table->foreignId('tag_id')->constrained('tags')->cascadeOnDelete();
+                $table->timestamps();
+
+                $table->unique(['task_id', 'tag_id']);
+                $table->index('task_id');
+                $table->index('tag_id');
+            });
+        }
+
+        // 16. Таблица участников проектов
+        if (!Schema::hasTable('project_members')) {
+            Schema::create('project_members', function (Blueprint $table) {
+                $table->id();
+                $table->foreignId('project_id')->constrained('projects')->cascadeOnDelete();
+                $table->foreignId('user_id')->constrained('users')->cascadeOnDelete();
+                $table->string('role')->default('member');
+                $table->timestamps();
+
+                $table->unique(['project_id', 'user_id']);
+                $table->index(['user_id', 'role']);
             });
         }
 
         // ==================== СИСТЕМНЫЕ ТАБЛИЦЫ LARAVEL ====================
 
-        // 11. Таблица для сброса паролей
+        // 17. Таблица для сброса паролей
         if (!Schema::hasTable('password_reset_tokens')) {
             Schema::create('password_reset_tokens', function (Blueprint $table) {
                 $table->string('email')->primary();
@@ -264,7 +330,7 @@ return new class extends Migration
             });
         }
 
-        // 12. Таблица для сессий
+        // 18. Таблица для сессий
         if (!Schema::hasTable('sessions')) {
             Schema::create('sessions', function (Blueprint $table) {
                 $table->string('id')->primary();
@@ -276,7 +342,7 @@ return new class extends Migration
             });
         }
 
-        // 13. Таблица для кэша
+        // 19. Таблица для кэша
         if (!Schema::hasTable('cache')) {
             Schema::create('cache', function (Blueprint $table) {
                 $table->string('key')->primary();
@@ -293,7 +359,7 @@ return new class extends Migration
             });
         }
 
-        // 14. Таблица для очередей
+        // 20. Таблица для очередей
         if (!Schema::hasTable('jobs')) {
             Schema::create('jobs', function (Blueprint $table) {
                 $table->id();
@@ -332,6 +398,29 @@ return new class extends Migration
                 $table->timestamp('failed_at')->useCurrent();
             });
         }
+
+        // ==================== ДОПОЛНИТЕЛЬНЫЕ ОПТИМИЗАЦИИ ====================
+
+        // 21. Добавляем отсутствующие индексы для существующих таблиц
+        if (Schema::hasTable('users') && !Schema::hasIndex('users', 'users_email_verified_at_index')) {
+            Schema::table('users', function (Blueprint $table) {
+                $table->index('email_verified_at');
+                $table->index('approved_at');
+            });
+        }
+
+        if (Schema::hasTable('departments') && !Schema::hasIndex('departments', 'departments_is_active_index')) {
+            Schema::table('departments', function (Blueprint $table) {
+                $table->index('is_active');
+            });
+        }
+
+        if (Schema::hasTable('positions') && !Schema::hasIndex('positions', 'positions_is_active_index')) {
+            Schema::table('positions', function (Blueprint $table) {
+                $table->index('is_active');
+                $table->index('level');
+            });
+        }
     }
 
     public function down(): void
@@ -339,11 +428,24 @@ return new class extends Migration
         // Отключаем проверку внешних ключей для безопасного удаления
         DB::statement('SET FOREIGN_KEY_CHECKS=0');
 
-        // Удаляем таблицы в обратном порядке
+        // Удаляем новые таблицы задач в обратном порядке
+        Schema::dropIfExists('task_tag');
+        Schema::dropIfExists('tags');
+        Schema::dropIfExists('task_histories');
+        Schema::dropIfExists('task_comments');
+        Schema::dropIfExists('task_subtasks');
+        Schema::dropIfExists('task_participants');
+        Schema::dropIfExists('project_members');
+        Schema::dropIfExists('tasks');
+        Schema::dropIfExists('projects');
+
+        // Удаляем старые таблицы задач
         Schema::dropIfExists('todo_participants');
         Schema::dropIfExists('todo_subtasks');
         Schema::dropIfExists('todo_comments');
         Schema::dropIfExists('todos');
+
+        // Удаляем системные таблицы
         Schema::dropIfExists('failed_jobs');
         Schema::dropIfExists('job_batches');
         Schema::dropIfExists('jobs');
@@ -351,6 +453,8 @@ return new class extends Migration
         Schema::dropIfExists('cache');
         Schema::dropIfExists('sessions');
         Schema::dropIfExists('password_reset_tokens');
+
+        // Удаляем основные таблицы
         Schema::dropIfExists('positions');
         Schema::dropIfExists('departments');
         Schema::dropIfExists('users');
