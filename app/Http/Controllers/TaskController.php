@@ -3,6 +3,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\TasksExport;
+use App\Exports\TasksPdfExport;
 use App\Models\Task;
 use App\Models\User;
 use App\Models\Tag;
@@ -12,6 +14,7 @@ use App\Services\TaskService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Cache;
+use Maatwebsite\Excel\Facades\Excel;
 
 class TaskController extends Controller
 {
@@ -407,4 +410,136 @@ class TaskController extends Controller
             abort(403, 'У вас нет прав на удаление этой задачи');
         }
     }
+
+    /**
+     * Экспорт задач в Excel
+     */
+    public function exportExcel(Request $request)
+    {
+        $user = $request->user();
+        $filters = $request->only(['status', 'priority', 'type', 'visibility', 'search']);
+
+        $tasks = Task::with(['creator', 'assignee'])
+            ->visibleTo($user)
+            ->when($filters, function ($query) use ($filters) {
+                if (!empty($filters['status']) && $filters['status'] !== 'all') {
+                    $query->where('status', $filters['status']);
+                }
+                if (!empty($filters['priority']) && $filters['priority'] !== 'all') {
+                    $query->where('priority', $filters['priority']);
+                }
+                if (!empty($filters['type']) && $filters['type'] !== 'all') {
+                    $query->where('type', $filters['type']);
+                }
+                if (!empty($filters['visibility']) && $filters['visibility'] !== 'all') {
+                    $query->where('visibility', $filters['visibility']);
+                }
+                if (!empty($filters['search'])) {
+                    $query->where('title', 'like', "%{$filters['search']}%");
+                }
+            })
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        $export = new TasksExport($tasks, $filters);
+
+        return Excel::download($export, 'tasks_export_' . date('Y-m-d_His') . '.xlsx');
+    }
+
+    /**
+     * Экспорт задач в PDF
+     */
+    public function exportPdf(Request $request)
+    {
+        $user = $request->user();
+        $filters = $request->only(['status', 'priority', 'type', 'visibility', 'search']);
+
+        $tasks = Task::with(['creator', 'assignee'])
+            ->visibleTo($user)
+            ->when($filters, function ($query) use ($filters) {
+                if (!empty($filters['status']) && $filters['status'] !== 'all') {
+                    $query->where('status', $filters['status']);
+                }
+                if (!empty($filters['priority']) && $filters['priority'] !== 'all') {
+                    $query->where('priority', $filters['priority']);
+                }
+                if (!empty($filters['type']) && $filters['type'] !== 'all') {
+                    $query->where('type', $filters['type']);
+                }
+                if (!empty($filters['visibility']) && $filters['visibility'] !== 'all') {
+                    $query->where('visibility', $filters['visibility']);
+                }
+                if (!empty($filters['search'])) {
+                    $query->where('title', 'like', "%{$filters['search']}%");
+                }
+            })
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        // Добавляем вычисляемые поля
+        foreach ($tasks as $task) {
+            $task->status_name = $this->getStatusName($task->status);
+            $task->priority_name = $this->getPriorityName($task->priority);
+            $task->type_name = $this->getTypeName($task->type);
+            $task->visibility_name = $this->getVisibilityName($task->visibility);
+        }
+
+        // Получаем статистику
+        $stats = $this->getTaskStats($user);
+
+        $export = new TasksPdfExport($tasks, $filters, $stats);
+
+        return $export->download();
+    }
+
+// Вспомогательные методы для получения названий
+    private function getStatusName($status): string
+    {
+        $map = [
+            'backlog' => 'Бэклог',
+            'todo' => 'К выполнению',
+            'in_progress' => 'В работе',
+            'in_review' => 'На проверке',
+            'completed' => 'Выполнена',
+            'cancelled' => 'Отменена',
+        ];
+        return $map[$status] ?? $status;
+    }
+
+    private function getPriorityName($priority): string
+    {
+        $map = [
+            'low' => 'Низкий',
+            'medium' => 'Средний',
+            'high' => 'Высокий',
+            'urgent' => 'Срочный',
+            'critical' => 'Критический',
+        ];
+        return $map[$priority] ?? $priority;
+    }
+
+    private function getTypeName($type): string
+    {
+        $map = [
+            'task' => 'Задача',
+            'urgent' => 'Срочная',
+            'reminder' => 'Напоминание',
+            'idea' => 'Идея',
+            'bug' => 'Ошибка',
+            'feature' => 'Новая функция',
+        ];
+        return $map[$type] ?? $type;
+    }
+
+    private function getVisibilityName($visibility): string
+    {
+        $map = [
+            'personal' => 'Личная',
+            'department' => 'Отдел',
+            'company' => 'Компания',
+            'project' => 'Проект',
+        ];
+        return $map[$visibility] ?? $visibility;
+    }
+
 }

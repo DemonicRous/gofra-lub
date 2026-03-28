@@ -15,12 +15,43 @@
                 </div>
 
                 <div class="flex gap-2">
-                    <button
-                        @click="exportTasks"
-                        class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition"
-                    >
-                        📥 Экспорт
-                    </button>
+                    <!-- Кнопка экспорта с выпадающим меню -->
+                    <div class="relative">
+                        <button
+                            @click="showExportMenu = !showExportMenu"
+                            class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition flex items-center gap-2"
+                        >
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                            Экспорт
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </button>
+
+                        <!-- Выпадающее меню экспорта -->
+                        <div v-if="showExportMenu" class="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-10">
+                            <button
+                                @click="exportExcel"
+                                class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition flex items-center gap-2"
+                            >
+                                <svg class="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                                Excel (.xlsx)
+                            </button>
+                            <button
+                                @click="exportPdf"
+                                class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition flex items-center gap-2"
+                            >
+                                <svg class="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                </svg>
+                                PDF (.pdf)
+                            </button>
+                        </div>
+                    </div>
 
                     <button
                         @click="openCreateModal"
@@ -238,7 +269,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { Head, router, useForm } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import TaskStats from '@/Components/Tasks/TaskStats.vue'
@@ -283,6 +314,7 @@ const currentUser = computed(() => page.props.auth?.user)
 const viewMode = ref('list')
 const showCreateModal = ref(false)
 const showEditModal = ref(false)
+const showExportMenu = ref(false)
 const taskToEdit = ref(null)
 
 const editForm = useForm({
@@ -316,9 +348,30 @@ const handleStatusChange = (taskId, status) => {
     })
 }
 
-// Экспорт задач
-const exportTasks = () => {
-    window.location.href = route('tasks.export', props.filters)
+// Экспорт в Excel
+const exportExcel = () => {
+    const params = new URLSearchParams()
+    if (props.filters.status && props.filters.status !== 'all') params.append('status', props.filters.status)
+    if (props.filters.priority && props.filters.priority !== 'all') params.append('priority', props.filters.priority)
+    if (props.filters.type && props.filters.type !== 'all') params.append('type', props.filters.type)
+    if (props.filters.visibility && props.filters.visibility !== 'all') params.append('visibility', props.filters.visibility)
+    if (props.filters.search) params.append('search', props.filters.search)
+
+    window.location.href = route('tasks.export.excel') + '?' + params.toString()
+    showExportMenu.value = false
+}
+
+// Экспорт в PDF
+const exportPdf = () => {
+    const params = new URLSearchParams()
+    if (props.filters.status && props.filters.status !== 'all') params.append('status', props.filters.status)
+    if (props.filters.priority && props.filters.priority !== 'all') params.append('priority', props.filters.priority)
+    if (props.filters.type && props.filters.type !== 'all') params.append('type', props.filters.type)
+    if (props.filters.visibility && props.filters.visibility !== 'all') params.append('visibility', props.filters.visibility)
+    if (props.filters.search) params.append('search', props.filters.search)
+
+    window.location.href = route('tasks.export.pdf') + '?' + params.toString()
+    showExportMenu.value = false
 }
 
 // Открыть задачу для просмотра
@@ -376,4 +429,19 @@ const updateTask = () => {
         }
     })
 }
+
+// Закрытие меню при клике вне
+const handleClickOutside = (event) => {
+    if (!event.target.closest('.relative')) {
+        showExportMenu.value = false
+    }
+}
+
+onMounted(() => {
+    document.addEventListener('click', handleClickOutside)
+})
+
+onUnmounted(() => {
+    document.removeEventListener('click', handleClickOutside)
+})
 </script>

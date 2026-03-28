@@ -92,4 +92,7 @@ Route::middleware(['auth', 'verified', 'approved'])->prefix('tasks')->name('task
     Route::post('/tasks/{task}/subtasks', [App\Http\Controllers\TaskController::class, 'addSubtask'])->name('tasks.subtasks.store');
     Route::patch('/tasks/subtasks/{subtask}', [App\Http\Controllers\TaskController::class, 'toggleSubtask'])->name('tasks.subtasks.toggle');
 
+    Route::get('/export/excel', [App\Http\Controllers\TaskController::class, 'exportExcel'])->name('export.excel');
+    Route::get('/export/pdf', [App\Http\Controllers\TaskController::class, 'exportPdf'])->name('export.pdf');
+
 });
