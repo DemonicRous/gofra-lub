@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\DepartmentController;
 use App\Http\Controllers\Admin\PositionController;
 use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\AuditController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\EmailVerificationController;
 use App\Http\Controllers\HomeController;
@@ -95,4 +96,24 @@ Route::middleware(['auth', 'verified', 'approved'])->prefix('tasks')->name('task
     Route::get('/export/excel', [App\Http\Controllers\TaskController::class, 'exportExcel'])->name('export.excel');
     Route::get('/export/pdf', [App\Http\Controllers\TaskController::class, 'exportPdf'])->name('export.pdf');
 
+});
+
+// Маршруты для аудитов
+Route::middleware(['auth', 'verified', 'approved'])->prefix('audits')->name('audits.')->group(function () {
+    Route::get('/', [App\Http\Controllers\AuditController::class, 'index'])->name('index');
+    Route::get('/create', [App\Http\Controllers\AuditController::class, 'create'])->name('create');
+    Route::post('/', [App\Http\Controllers\AuditController::class, 'store'])->name('store');
+
+    Route::get('/{audit}', [App\Http\Controllers\AuditController::class, 'show'])->name('show');
+    Route::put('/{audit}', [App\Http\Controllers\AuditController::class, 'update'])->name('update');
+    Route::delete('/{audit}', [App\Http\Controllers\AuditController::class, 'destroy'])->name('destroy');
+
+    Route::post('/{audit}/complete', [App\Http\Controllers\AuditController::class, 'complete'])->name('complete');
+    Route::post('/{audit}/media', [App\Http\Controllers\AuditController::class, 'uploadMedia'])->name('media.upload');
+    Route::delete('/media/{media}', [App\Http\Controllers\AuditController::class, 'deleteMedia'])->name('media.delete');
+    Route::post('/{audit}/comments', [App\Http\Controllers\AuditController::class, 'addComment'])->name('comments.store');
+    Route::get('/{audit}/export-pdf', [App\Http\Controllers\AuditController::class, 'exportPdf'])->name('export.pdf');
+
+    Route::post('/{audit}/media/comment', [AuditController::class, 'uploadCommentMedia'])->name('media.upload.comment');
+    Route::post('/{audit}/start', [AuditController::class, 'start'])->name('start');
 });

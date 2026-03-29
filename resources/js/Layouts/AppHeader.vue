@@ -1,3 +1,4 @@
+<!-- resources/js/Layouts/AppHeader.vue -->
 <script setup>
 import { Link, usePage, router } from '@inertiajs/vue3'
 import { computed, ref, onMounted, onUnmounted } from 'vue'
@@ -41,7 +42,6 @@ const applyTheme = (selectedTheme) => {
     }
 }
 
-// Закрытие меню
 const closeMenu = () => {
     mobileMenuOpen.value = false
 }
@@ -50,41 +50,17 @@ const toggleMenu = () => {
     mobileMenuOpen.value = !mobileMenuOpen.value
 }
 
-// Получаем текущий URL
 const currentUrl = computed(() => page.url)
 
-// Функции для определения активных страниц
-const isActiveHome = () => {
-    return currentUrl.value === '/'
-}
-
-const isActiveDashboard = () => {
-    return currentUrl.value === '/dashboard'
-}
-
-const isActiveTodos = () => {
-    return currentUrl.value.startsWith('/tasks')
-}
-
-const isActiveAdminUsers = () => {
-    return currentUrl.value === '/admin/users'
-}
-
-const isActiveAdminStatistics = () => {
-    return currentUrl.value === '/admin/statistics'
-}
-
-const isActiveAdminDepartments = () => {
-    return currentUrl.value === '/admin/departments' || currentUrl.value.startsWith('/admin/departments/')
-}
-
-const isActiveAdminPositions = () => {
-    return currentUrl.value === '/admin/positions' || currentUrl.value.startsWith('/admin/positions/')
-}
-
-const isActiveProfile = () => {
-    return currentUrl.value === '/profile'
-}
+const isActiveHome = () => currentUrl.value === '/'
+const isActiveDashboard = () => currentUrl.value === '/dashboard'
+const isActiveTasks = () => currentUrl.value.startsWith('/tasks')
+const isActiveAudits = () => currentUrl.value.startsWith('/audits')
+const isActiveAdminUsers = () => currentUrl.value === '/admin/users'
+const isActiveAdminStatistics = () => currentUrl.value === '/admin/statistics'
+const isActiveAdminDepartments = () => currentUrl.value === '/admin/departments' || currentUrl.value.startsWith('/admin/departments/')
+const isActiveAdminPositions = () => currentUrl.value === '/admin/positions' || currentUrl.value.startsWith('/admin/positions/')
+const isActiveProfile = () => currentUrl.value === '/profile'
 
 onMounted(() => {
     const savedTheme = localStorage.getItem('theme') || 'light'
@@ -147,14 +123,26 @@ onUnmounted(() => {
                             :href="route('tasks.index')"
                             class="relative px-1 py-2 text-gray-700 dark:text-gray-300 transition-all duration-200 hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer"
                             :class="{
-                                'text-blue-600 dark:text-blue-400 font-semibold': isActiveTodos(),
-                                'after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-gradient-to-r after:from-blue-500 after:to-blue-600 after:rounded-full after:transition-all after:duration-300': isActiveTodos()
+                                'text-blue-600 dark:text-blue-400 font-semibold': isActiveTasks(),
+                                'after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-gradient-to-r after:from-blue-500 after:to-blue-600 after:rounded-full after:transition-all after:duration-300': isActiveTasks()
                             }"
                         >
                             Задачи
                         </Link>
 
-                        <!-- Выпадающее меню администрирования с исправленным зазором -->
+                        <!-- Аудиты (выездные) -->
+                        <Link
+                            :href="route('audits.index')"
+                            class="relative px-1 py-2 text-gray-700 dark:text-gray-300 transition-all duration-200 hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer"
+                            :class="{
+                                'text-blue-600 dark:text-blue-400 font-semibold': isActiveAudits(),
+                                'after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-gradient-to-r after:from-blue-500 after:to-blue-600 after:rounded-full after:transition-all after:duration-300': isActiveAudits()
+                            }"
+                        >
+                            Аудиты
+                        </Link>
+
+                        <!-- Выпадающее меню администрирования -->
                         <div v-if="isAdmin" class="relative group">
                             <button
                                 class="relative px-1 py-2 text-gray-700 dark:text-gray-300 transition-all duration-200 hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer flex items-center gap-1"
@@ -168,7 +156,6 @@ onUnmounted(() => {
                                 </svg>
                             </button>
 
-                            <!-- Прозрачный мостик для плавного перехода -->
                             <div class="absolute left-0 pt-2 w-56 invisible group-hover:visible">
                                 <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700">
                                     <div class="py-2">
@@ -236,7 +223,7 @@ onUnmounted(() => {
                         </svg>
                     </button>
 
-                    <!-- Профиль (авторизован) с исправленным зазором -->
+                    <!-- Профиль (авторизован) -->
                     <div v-if="isAuthenticated" class="relative group">
                         <button class="flex items-center space-x-2 p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition cursor-pointer">
                             <div class="w-8 h-8 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white font-semibold text-sm">
@@ -255,7 +242,6 @@ onUnmounted(() => {
                             </svg>
                         </button>
 
-                        <!-- Прозрачный мостик для плавного перехода -->
                         <div class="absolute right-0 pt-2 w-56 invisible group-hover:visible">
                             <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700">
                                 <div class="py-2">
@@ -303,7 +289,7 @@ onUnmounted(() => {
             </div>
         </div>
 
-        <!-- Мобильное меню - плавное выезжание сверху -->
+        <!-- Мобильное меню -->
         <transition
             enter-active-class="transition-all duration-300 ease-out"
             enter-from-class="-translate-y-full opacity-0"
@@ -312,9 +298,9 @@ onUnmounted(() => {
             leave-from-class="translate-y-0 opacity-100"
             leave-to-class="-translate-y-full opacity-0"
         >
-            <div v-if="mobileMenuOpen" class="lg:hidden absolute top-full left-0 right-0 bg-white dark:bg-gray-900 shadow-lg border-t border-gray-200 dark:border-gray-700 z-50">
+            <div v-if="mobileMenuOpen" class="lg:hidden absolute top-full left-0 right-0 bg-white dark:bg-gray-900 shadow-lg border-t border-gray-200 dark:border-gray-700 z-50 max-h-[80vh] overflow-y-auto">
                 <div class="container mx-auto px-4 py-4">
-                    <!-- Профиль в мобильном меню (если авторизован) -->
+                    <!-- Профиль в мобильном меню -->
                     <div v-if="isAuthenticated" class="pb-4 mb-4 border-b border-gray-200 dark:border-gray-700">
                         <div class="flex items-center space-x-3">
                             <div class="w-12 h-12 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white font-bold text-lg">
@@ -367,13 +353,13 @@ onUnmounted(() => {
                                 </div>
                             </Link>
 
-                            <!-- Задачи (мобильное меню) -->
+                            <!-- Задачи -->
                             <Link
                                 :href="route('tasks.index')"
                                 class="px-4 py-3 rounded-lg transition cursor-pointer"
                                 :class="{
-                                    'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-semibold': isActiveTodos(),
-                                    'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800': !isActiveTodos()
+                                    'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-semibold': isActiveTasks(),
+                                    'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800': !isActiveTasks()
                                 }"
                                 @click="closeMenu"
                             >
@@ -385,13 +371,30 @@ onUnmounted(() => {
                                 </div>
                             </Link>
 
+                            <!-- Аудиты (выездные) -->
+                            <Link
+                                :href="route('audits.index')"
+                                class="px-4 py-3 rounded-lg transition cursor-pointer"
+                                :class="{
+                                    'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-semibold': isActiveAudits(),
+                                    'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800': !isActiveAudits()
+                                }"
+                                @click="closeMenu"
+                            >
+                                <div class="flex items-center space-x-3">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path>
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                    </svg>
+                                    <span>Выездные аудиты</span>
+                                </div>
+                            </Link>
+
                             <template v-if="isAdmin">
-                                <!-- Заголовок админки -->
                                 <div class="px-4 py-2 mt-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                     Администрирование
                                 </div>
 
-                                <!-- Управление пользователями -->
                                 <Link
                                     :href="route('admin.users')"
                                     class="px-4 py-3 rounded-lg transition cursor-pointer pl-8"
@@ -409,7 +412,6 @@ onUnmounted(() => {
                                     </div>
                                 </Link>
 
-                                <!-- Отделы -->
                                 <Link
                                     :href="route('admin.departments.index')"
                                     class="px-4 py-3 rounded-lg transition cursor-pointer pl-8"
@@ -427,7 +429,6 @@ onUnmounted(() => {
                                     </div>
                                 </Link>
 
-                                <!-- Должности -->
                                 <Link
                                     :href="route('admin.positions.index')"
                                     class="px-4 py-3 rounded-lg transition cursor-pointer pl-8"
@@ -445,7 +446,6 @@ onUnmounted(() => {
                                     </div>
                                 </Link>
 
-                                <!-- Статистика -->
                                 <Link
                                     :href="route('admin.statistics')"
                                     class="px-4 py-3 rounded-lg transition cursor-pointer pl-8"
@@ -466,7 +466,6 @@ onUnmounted(() => {
 
                             <div class="border-t border-gray-200 dark:border-gray-700 my-2"></div>
 
-                            <!-- Профиль -->
                             <Link
                                 :href="route('profile.edit')"
                                 class="px-4 py-3 rounded-lg transition cursor-pointer"
@@ -484,7 +483,6 @@ onUnmounted(() => {
                                 </div>
                             </Link>
 
-                            <!-- Выход -->
                             <button
                                 @click="logout"
                                 class="px-4 py-3 rounded-lg text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition text-left cursor-pointer"
@@ -532,7 +530,6 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-/* Плавные переходы */
 .group-hover\:rotate-180 {
     transform: rotate(180deg);
 }
