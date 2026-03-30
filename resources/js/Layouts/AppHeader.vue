@@ -1,4 +1,5 @@
-<!-- resources/js/Layouts/AppHeader.vue -->
+<!-- resources/js/Layouts/AppHeader.vue - исправленная версия с правильным позиционированием -->
+
 <script setup>
 import { Link, usePage, router } from '@inertiajs/vue3'
 import { computed, ref, onMounted, onUnmounted } from 'vue'
@@ -44,10 +45,17 @@ const applyTheme = (selectedTheme) => {
 
 const closeMenu = () => {
     mobileMenuOpen.value = false
+    // Убираем блокировку скролла при закрытии
+    document.body.style.overflow = ''
 }
 
 const toggleMenu = () => {
     mobileMenuOpen.value = !mobileMenuOpen.value
+    if (mobileMenuOpen.value) {
+        document.body.style.overflow = 'hidden'
+    } else {
+        document.body.style.overflow = ''
+    }
 }
 
 const currentUrl = computed(() => page.url)
@@ -56,10 +64,13 @@ const isActiveHome = () => currentUrl.value === '/'
 const isActiveDashboard = () => currentUrl.value === '/dashboard'
 const isActiveTasks = () => currentUrl.value.startsWith('/tasks')
 const isActiveAudits = () => currentUrl.value.startsWith('/audits')
+const isActiveScoring = () => currentUrl.value.startsWith('/scoring')
+const isActiveScoringSummary = () => currentUrl.value === '/scoring/summary'
 const isActiveAdminUsers = () => currentUrl.value === '/admin/users'
 const isActiveAdminStatistics = () => currentUrl.value === '/admin/statistics'
 const isActiveAdminDepartments = () => currentUrl.value === '/admin/departments' || currentUrl.value.startsWith('/admin/departments/')
 const isActiveAdminPositions = () => currentUrl.value === '/admin/positions' || currentUrl.value.startsWith('/admin/positions/')
+const isActiveAdminScoring = () => currentUrl.value === '/admin/scoring/categories'
 const isActiveProfile = () => currentUrl.value === '/profile'
 
 onMounted(() => {
@@ -93,8 +104,9 @@ onUnmounted(() => {
                     </div>
                 </Link>
 
-                <!-- Десктопное меню -->
+                <!-- Десктопное меню (остается без изменений) -->
                 <nav class="hidden lg:flex items-center space-x-6">
+                    <!-- ... содержимое меню остается таким же ... -->
                     <Link
                         :href="route('pages.home')"
                         class="relative px-1 py-2 text-gray-700 dark:text-gray-300 transition-all duration-200 hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer"
@@ -118,7 +130,6 @@ onUnmounted(() => {
                             Панель управления
                         </Link>
 
-                        <!-- Задачи -->
                         <Link
                             :href="route('tasks.index')"
                             class="relative px-1 py-2 text-gray-700 dark:text-gray-300 transition-all duration-200 hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer"
@@ -130,7 +141,6 @@ onUnmounted(() => {
                             Задачи
                         </Link>
 
-                        <!-- Аудиты (выездные) -->
                         <Link
                             :href="route('audits.index')"
                             class="relative px-1 py-2 text-gray-700 dark:text-gray-300 transition-all duration-200 hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer"
@@ -141,6 +151,48 @@ onUnmounted(() => {
                         >
                             Аудиты
                         </Link>
+
+                        <!-- Система баллов (выпадающее меню) -->
+                        <div class="relative group">
+                            <button
+                                class="relative px-1 py-2 text-gray-700 dark:text-gray-300 transition-all duration-200 hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer flex items-center gap-1"
+                                :class="{
+                                    'text-blue-600 dark:text-blue-400 font-semibold': isActiveScoring()
+                                }"
+                            >
+                                Система баллов
+                                <svg class="w-4 h-4 transition-transform group-hover:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                </svg>
+                            </button>
+
+                            <div class="absolute left-0 pt-2 w-56 invisible group-hover:visible">
+                                <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700">
+                                    <div class="py-2">
+                                        <Link
+                                            :href="route('scoring.index')"
+                                            class="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition cursor-pointer"
+                                            :class="{ 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400': isActiveScoring() && !isActiveScoringSummary() }"
+                                        >
+                                            <svg class="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                                            </svg>
+                                            Мои ведомости
+                                        </Link>
+                                        <Link
+                                            :href="route('scoring.summary')"
+                                            class="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition cursor-pointer"
+                                            :class="{ 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400': isActiveScoringSummary() }"
+                                        >
+                                            <svg class="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                                            </svg>
+                                            Сводка по отделам
+                                        </Link>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
 
                         <!-- Выпадающее меню администрирования -->
                         <div v-if="isAdmin" class="relative group">
@@ -191,12 +243,23 @@ onUnmounted(() => {
                                         </Link>
                                         <div class="border-t border-gray-200 dark:border-gray-700 my-1"></div>
                                         <Link
+                                            :href="route('admin.scoring.categories')"
+                                            class="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition cursor-pointer"
+                                            :class="{ 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400': isActiveAdminScoring() }"
+                                        >
+                                            <svg class="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                                            </svg>
+                                            Категории баллов
+                                        </Link>
+                                        <div class="border-t border-gray-200 dark:border-gray-700 my-1"></div>
+                                        <Link
                                             :href="route('admin.statistics')"
                                             class="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition cursor-pointer"
                                             :class="{ 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400': isActiveAdminStatistics() }"
                                         >
                                             <svg class="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                                             </svg>
                                             Статистика
                                         </Link>
@@ -248,12 +311,21 @@ onUnmounted(() => {
                                     <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
                                         <p class="text-sm font-medium text-gray-900 dark:text-white">{{ user?.full_name || user?.email }}</p>
                                         <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ user?.email }}</p>
+                                        <p v-if="user?.scoring_department" class="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                                            {{ user.scoring_department === 'constructor' ? 'Конструктор' : 'Дизайнер' }}
+                                        </p>
                                     </div>
                                     <Link :href="route('profile.edit')" class="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition cursor-pointer">
                                         <svg class="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
                                         </svg>
                                         Профиль
+                                    </Link>
+                                    <Link :href="route('scoring.index')" class="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition cursor-pointer">
+                                        <svg class="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                                        </svg>
+                                        Мои баллы
                                     </Link>
                                     <div class="border-t border-gray-200 dark:border-gray-700 my-1"></div>
                                     <button @click="logout" class="flex w-full items-center px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition cursor-pointer">
@@ -289,7 +361,7 @@ onUnmounted(() => {
             </div>
         </div>
 
-        <!-- Мобильное меню -->
+        <!-- Мобильное меню - исправленное позиционирование -->
         <transition
             enter-active-class="transition-all duration-300 ease-out"
             enter-from-class="-translate-y-full opacity-0"
@@ -298,7 +370,7 @@ onUnmounted(() => {
             leave-from-class="translate-y-0 opacity-100"
             leave-to-class="-translate-y-full opacity-0"
         >
-            <div v-if="mobileMenuOpen" class="lg:hidden absolute top-full left-0 right-0 bg-white dark:bg-gray-900 shadow-lg border-t border-gray-200 dark:border-gray-700 z-50 max-h-[80vh] overflow-y-auto">
+            <div v-if="mobileMenuOpen" class="lg:hidden fixed inset-x-0 top-[64px] lg:top-[80px] bg-white dark:bg-gray-900 shadow-lg border-t border-gray-200 dark:border-gray-700 z-40 max-h-[calc(100vh-64px)] overflow-y-auto">
                 <div class="container mx-auto px-4 py-4">
                     <!-- Профиль в мобильном меню -->
                     <div v-if="isAuthenticated" class="pb-4 mb-4 border-b border-gray-200 dark:border-gray-700">
@@ -316,7 +388,7 @@ onUnmounted(() => {
                         </div>
                     </div>
 
-                    <!-- Навигация -->
+                    <!-- Навигация (остается такой же, как в оригинале) -->
                     <div class="flex flex-col space-y-1">
                         <Link
                             :href="route('pages.home')"
@@ -353,7 +425,6 @@ onUnmounted(() => {
                                 </div>
                             </Link>
 
-                            <!-- Задачи -->
                             <Link
                                 :href="route('tasks.index')"
                                 class="px-4 py-3 rounded-lg transition cursor-pointer"
@@ -371,7 +442,6 @@ onUnmounted(() => {
                                 </div>
                             </Link>
 
-                            <!-- Аудиты (выездные) -->
                             <Link
                                 :href="route('audits.index')"
                                 class="px-4 py-3 rounded-lg transition cursor-pointer"
@@ -387,6 +457,42 @@ onUnmounted(() => {
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path>
                                     </svg>
                                     <span>Выездные аудиты</span>
+                                </div>
+                            </Link>
+
+                            <div class="px-4 py-2 mt-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                Система баллов
+                            </div>
+                            <Link
+                                :href="route('scoring.index')"
+                                class="px-4 py-3 rounded-lg transition cursor-pointer pl-8"
+                                :class="{
+                                    'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-semibold': isActiveScoring() && !isActiveScoringSummary(),
+                                    'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800': !isActiveScoring()
+                                }"
+                                @click="closeMenu"
+                            >
+                                <div class="flex items-center space-x-3">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                                    </svg>
+                                    <span>Мои ведомости</span>
+                                </div>
+                            </Link>
+                            <Link
+                                :href="route('scoring.summary')"
+                                class="px-4 py-3 rounded-lg transition cursor-pointer pl-8"
+                                :class="{
+                                    'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-semibold': isActiveScoringSummary(),
+                                    'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800': !isActiveScoringSummary()
+                                }"
+                                @click="closeMenu"
+                            >
+                                <div class="flex items-center space-x-3">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                                    </svg>
+                                    <span>Сводка по отделам</span>
                                 </div>
                             </Link>
 
@@ -443,6 +549,23 @@ onUnmounted(() => {
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
                                         </svg>
                                         <span>Должности</span>
+                                    </div>
+                                </Link>
+
+                                <Link
+                                    :href="route('admin.scoring.categories')"
+                                    class="px-4 py-3 rounded-lg transition cursor-pointer pl-8"
+                                    :class="{
+                                        'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-semibold': isActiveAdminScoring(),
+                                        'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800': !isActiveAdminScoring()
+                                    }"
+                                    @click="closeMenu"
+                                >
+                                    <div class="flex items-center space-x-3">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                                        </svg>
+                                        <span>Категории баллов</span>
                                     </div>
                                 </Link>
 
@@ -532,5 +655,35 @@ onUnmounted(() => {
 <style scoped>
 .group-hover\:rotate-180 {
     transform: rotate(180deg);
+}
+
+/* Фиксированное позиционирование для мобильного меню */
+@media (max-width: 1023px) {
+    .fixed {
+        position: fixed;
+    }
+
+    .inset-x-0 {
+        left: 0;
+        right: 0;
+    }
+
+    .top-\[64px\] {
+        top: 64px;
+    }
+
+    .max-h-\[calc\(100vh-64px\)\] {
+        max-height: calc(100vh - 64px);
+    }
+}
+
+@media (min-width: 1024px) {
+    .lg\:top-\[80px\] {
+        top: 80px;
+    }
+
+    .lg\:max-h-\[calc\(100vh-80px\)\] {
+        max-height: calc(100vh - 80px);
+    }
 }
 </style>

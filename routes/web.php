@@ -1,4 +1,5 @@
 <?php
+// routes/web.php
 
 use App\Http\Controllers\Admin\DepartmentController;
 use App\Http\Controllers\Admin\PositionController;
@@ -66,54 +67,123 @@ Route::middleware(['auth', 'verified', 'approved', 'admin'])->prefix('admin')->n
     Route::delete('/users/bulk-destroy', [UserController::class, 'bulkDestroy'])->name('users.bulk-destroy');
     Route::get('/statistics', [UserController::class, 'statistics'])->name('statistics');
 
-    // Новый маршрут для получения руководителей
+    // Маршрут для получения руководителей
     Route::get('/leaders', [UserController::class, 'getLeaders'])->name('users.leaders');
 
     Route::resource('departments', DepartmentController::class);
     Route::resource('positions', PositionController::class);
+
+    // Админские маршруты для управления менеджерами
+    Route::prefix('managers')->name('managers.')->group(function () {
+        Route::get('/', [App\Http\Controllers\Admin\ManagerController::class, 'index'])->name('index');
+        Route::post('/', [App\Http\Controllers\Admin\ManagerController::class, 'store'])->name('store');
+        Route::put('/{manager}', [App\Http\Controllers\Admin\ManagerController::class, 'update'])->name('update');
+        Route::delete('/{manager}', [App\Http\Controllers\Admin\ManagerController::class, 'destroy'])->name('destroy');
+    });
+
+    // Админские маршруты для категорий баллов
+    Route::prefix('scoring')->name('scoring.')->group(function () {
+        Route::get('/categories', [App\Http\Controllers\Admin\ScoringCategoryController::class, 'index'])->name('categories');
+        Route::post('/categories', [App\Http\Controllers\Admin\ScoringCategoryController::class, 'store'])->name('categories.store');
+        Route::put('/categories/{category}', [App\Http\Controllers\Admin\ScoringCategoryController::class, 'update'])->name('categories.update');
+        Route::delete('/categories/{category}', [App\Http\Controllers\Admin\ScoringCategoryController::class, 'destroy'])->name('categories.destroy');
+        Route::post('/categories/reorder', [App\Http\Controllers\Admin\ScoringCategoryController::class, 'reorder'])->name('categories.reorder');
+    });
 });
 
 Route::get('/api/positions/by-department/{departmentId}', [PositionController::class, 'getByDepartment']);
 
 // Маршруты для задач (TO-DO) - новая версия
 Route::middleware(['auth', 'verified', 'approved'])->prefix('tasks')->name('tasks.')->group(function () {
-    Route::get('/', [App\Http\Controllers\TaskController::class, 'index'])->name('index');
-    Route::post('/', [App\Http\Controllers\TaskController::class, 'store'])->name('store');
-    Route::post('/bulk-update', [App\Http\Controllers\TaskController::class, 'bulkUpdate'])->name('bulk-update');
-    Route::get('/export', [App\Http\Controllers\TaskController::class, 'export'])->name('export');
+    Route::get('/', [TaskController::class, 'index'])->name('index');
+    Route::post('/', [TaskController::class, 'store'])->name('store');
+    Route::post('/bulk-update', [TaskController::class, 'bulkUpdate'])->name('bulk-update');
+    Route::get('/export', [TaskController::class, 'export'])->name('export');
 
-    Route::get('/{task}', [App\Http\Controllers\TaskController::class, 'show'])->name('show');
-    Route::put('/{task}', [App\Http\Controllers\TaskController::class, 'update'])->name('update');
-    Route::delete('/{task}', [App\Http\Controllers\TaskController::class, 'destroy'])->name('destroy');
+    Route::get('/{task}', [TaskController::class, 'show'])->name('show');
+    Route::put('/{task}', [TaskController::class, 'update'])->name('update');
+    Route::delete('/{task}', [TaskController::class, 'destroy'])->name('destroy');
 
-    Route::post('/{task}/comments', [App\Http\Controllers\TaskController::class, 'addComment'])->name('comments.store');
-    Route::patch('/subtasks/{subtask}', [App\Http\Controllers\TaskController::class, 'toggleSubtask'])->name('subtasks.toggle');
-    Route::post('/{task}/subtasks', [App\Http\Controllers\TaskController::class, 'addSubtask'])->name('subtasks.store');
+    Route::post('/{task}/comments', [TaskController::class, 'addComment'])->name('comments.store');
+    Route::patch('/subtasks/{subtask}', [TaskController::class, 'toggleSubtask'])->name('subtasks.toggle');
+    Route::post('/{task}/subtasks', [TaskController::class, 'addSubtask'])->name('subtasks.store');
 
-    Route::post('/tasks/{task}/subtasks', [App\Http\Controllers\TaskController::class, 'addSubtask'])->name('tasks.subtasks.store');
-    Route::patch('/tasks/subtasks/{subtask}', [App\Http\Controllers\TaskController::class, 'toggleSubtask'])->name('tasks.subtasks.toggle');
-
-    Route::get('/export/excel', [App\Http\Controllers\TaskController::class, 'exportExcel'])->name('export.excel');
-    Route::get('/export/pdf', [App\Http\Controllers\TaskController::class, 'exportPdf'])->name('export.pdf');
-
+    Route::get('/export/excel', [TaskController::class, 'exportExcel'])->name('export.excel');
+    Route::get('/export/pdf', [TaskController::class, 'exportPdf'])->name('export.pdf');
 });
 
 // Маршруты для аудитов
 Route::middleware(['auth', 'verified', 'approved'])->prefix('audits')->name('audits.')->group(function () {
-    Route::get('/', [App\Http\Controllers\AuditController::class, 'index'])->name('index');
-    Route::get('/create', [App\Http\Controllers\AuditController::class, 'create'])->name('create');
-    Route::post('/', [App\Http\Controllers\AuditController::class, 'store'])->name('store');
+    Route::get('/', [AuditController::class, 'index'])->name('index');
+    Route::get('/create', [AuditController::class, 'create'])->name('create');
+    Route::post('/', [AuditController::class, 'store'])->name('store');
 
-    Route::get('/{audit}', [App\Http\Controllers\AuditController::class, 'show'])->name('show');
-    Route::put('/{audit}', [App\Http\Controllers\AuditController::class, 'update'])->name('update');
-    Route::delete('/{audit}', [App\Http\Controllers\AuditController::class, 'destroy'])->name('destroy');
+    Route::get('/{audit}', [AuditController::class, 'show'])->name('show');
+    Route::put('/{audit}', [AuditController::class, 'update'])->name('update');
+    Route::delete('/{audit}', [AuditController::class, 'destroy'])->name('destroy');
 
-    Route::post('/{audit}/complete', [App\Http\Controllers\AuditController::class, 'complete'])->name('complete');
-    Route::post('/{audit}/media', [App\Http\Controllers\AuditController::class, 'uploadMedia'])->name('media.upload');
-    Route::delete('/media/{media}', [App\Http\Controllers\AuditController::class, 'deleteMedia'])->name('media.delete');
-    Route::post('/{audit}/comments', [App\Http\Controllers\AuditController::class, 'addComment'])->name('comments.store');
-    Route::get('/{audit}/export-pdf', [App\Http\Controllers\AuditController::class, 'exportPdf'])->name('export.pdf');
+    Route::post('/{audit}/complete', [AuditController::class, 'complete'])->name('complete');
+    Route::post('/{audit}/media', [AuditController::class, 'uploadMedia'])->name('media.upload');
+    Route::delete('/media/{media}', [AuditController::class, 'deleteMedia'])->name('media.delete');
+    Route::post('/{audit}/comments', [AuditController::class, 'addComment'])->name('comments.store');
+    Route::get('/{audit}/export-pdf', [AuditController::class, 'exportPdf'])->name('export.pdf');
 
     Route::post('/{audit}/media/comment', [AuditController::class, 'uploadCommentMedia'])->name('media.upload.comment');
     Route::post('/{audit}/start', [AuditController::class, 'start'])->name('start');
+});
+
+// ==================== СИСТЕМА ПОДСЧЕТА БАЛЛОВ ====================
+
+Route::middleware(['auth', 'verified', 'approved'])->prefix('scoring')->name('scoring.')->group(function () {
+    // Личные ведомости
+    Route::get('/', [App\Http\Controllers\Scoring\SheetController::class, 'index'])->name('index');
+    Route::get('/sheets/{sheet}', [App\Http\Controllers\Scoring\SheetController::class, 'show'])->name('sheets.show');
+    Route::post('/sheets/{sheet}/confirm', [App\Http\Controllers\Scoring\SheetController::class, 'confirm'])->name('sheets.confirm');
+
+    // Записи
+    Route::get('/sheets/{sheet}/entries/create', [App\Http\Controllers\Scoring\EntryController::class, 'create'])->name('entries.create');
+    Route::post('/sheets/{sheet}/entries', [App\Http\Controllers\Scoring\EntryController::class, 'store'])->name('entries.store');
+    Route::delete('/entries/{entry}', [App\Http\Controllers\Scoring\EntryController::class, 'destroy'])->name('entries.destroy');
+
+    // Отчеты
+    Route::get('/summary', [App\Http\Controllers\Scoring\ReportController::class, 'summary'])->name('summary');
+    Route::get('/export/sheet/{sheet}', [App\Http\Controllers\Scoring\ReportController::class, 'exportSheet'])->name('export.sheet');
+    Route::get('/export/summary', [App\Http\Controllers\Scoring\ReportController::class, 'exportSummary'])->name('export.summary');
+});
+
+// API маршруты для Dashboard (опционально)
+Route::middleware(['auth', 'verified', 'approved'])->prefix('api/dashboard')->group(function () {
+    Route::get('/tasks-stats', function () {
+        $user = auth()->user();
+        $tasks = \App\Models\Task::visibleTo($user)->get();
+
+        return response()->json([
+            'active' => $tasks->whereNotIn('status', ['completed', 'cancelled'])->count(),
+            'total' => $tasks->count(),
+        ]);
+    });
+
+    Route::get('/audits-stats', function () {
+        $user = auth()->user();
+        $audits = \App\Models\Audit::visibleTo($user)->get();
+
+        return response()->json([
+            'active' => $audits->where('status', 'in_progress')->count(),
+            'total' => $audits->count(),
+        ]);
+    });
+
+    Route::get('/scoring-stats', function () {
+        $user = auth()->user();
+        $currentMonth = \Carbon\Carbon::now()->startOfMonth();
+
+        $sheet = \App\Models\ScoringSheet::where('user_id', $user->id)
+            ->where('period_date', $currentMonth)
+            ->first();
+
+        return response()->json([
+            'current_month_points' => $sheet ? $sheet->total_points : 0,
+            'has_sheet' => (bool) $sheet,
+        ]);
+    });
 });

@@ -20,5 +20,7 @@ class DatabaseSeeder extends Seeder
 
         // Затем создаем роли, разрешения и пользователей
         $this->call(RolePermissionSeeder::class);
+
+        $this->call(ManagerSeeder::class);
     }
 }

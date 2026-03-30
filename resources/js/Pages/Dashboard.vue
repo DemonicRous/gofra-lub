@@ -1,3 +1,5 @@
+<!-- resources/js/Pages/Dashboard.vue - исправленная версия -->
+
 <template>
     <AppLayout>
         <Head title="Панель управления" />
@@ -23,8 +25,8 @@
                             <span v-if="user?.position_name" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-white/20">
                                 {{ user.position_name }}
                             </span>
-                            <span v-if="user?.position_level && !user?.position_name" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-white/20">
-                                {{ getLevelName(user.position_level) }}
+                            <span v-if="user?.scoring_department" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-white/20">
+                                {{ user.scoring_department === 'constructor' ? 'Конструктор' : 'Дизайнер' }}
                             </span>
                         </div>
                     </div>
@@ -35,6 +37,94 @@
                             </svg>
                         </div>
                     </div>
+                </div>
+            </div>
+
+            <!-- Карточки статистики -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <!-- Задачи -->
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 transition-colors duration-300 hover:shadow-xl">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-gray-500 dark:text-gray-400">Активных задач</p>
+                            <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ taskStats.active }}</p>
+                        </div>
+                        <div class="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center">
+                            <svg class="w-6 h-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="mt-4 text-sm text-gray-500 dark:text-gray-400">
+                        Всего: {{ taskStats.total }}
+                    </div>
+                    <Link :href="route('tasks.index')" class="mt-4 inline-block text-sm text-blue-600 dark:text-blue-400 hover:underline">
+                        Перейти к задачам →
+                    </Link>
+                </div>
+
+                <!-- Аудиты -->
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 transition-colors duration-300 hover:shadow-xl">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-gray-500 dark:text-gray-400">Активных аудитов</p>
+                            <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ auditStats.active }}</p>
+                        </div>
+                        <div class="w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center">
+                            <svg class="w-6 h-6 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="mt-4 text-sm text-gray-500 dark:text-gray-400">
+                        Всего: {{ auditStats.total }}
+                    </div>
+                    <Link :href="route('audits.index')" class="mt-4 inline-block text-sm text-blue-600 dark:text-blue-400 hover:underline">
+                        Перейти к аудитам →
+                    </Link>
+                </div>
+
+                <!-- Баллы -->
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 transition-colors duration-300 hover:shadow-xl">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-gray-500 dark:text-gray-400">Баллов за месяц</p>
+                            <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ scoringStats.currentMonthPoints }}</p>
+                        </div>
+                        <div class="w-12 h-12 bg-purple-100 dark:bg-purple-900/30 rounded-full flex items-center justify-center">
+                            <svg class="w-6 h-6 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="mt-4 text-sm text-gray-500 dark:text-gray-400">
+                        {{ scoringStats.hasSheet ? 'Ведомость создана' : 'Ведомость не создана' }}
+                    </div>
+                    <Link :href="route('scoring.index')" class="mt-4 inline-block text-sm text-blue-600 dark:text-blue-400 hover:underline">
+                        {{ scoringStats.hasSheet ? 'Заполнить ведомость →' : 'Создать ведомость →' }}
+                    </Link>
+                </div>
+
+                <!-- Профиль -->
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 transition-colors duration-300 hover:shadow-xl">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-gray-500 dark:text-gray-400">Профиль</p>
+                            <p class="text-lg font-bold text-gray-900 dark:text-white truncate">{{ user?.email }}</p>
+                        </div>
+                        <div class="w-12 h-12 bg-orange-100 dark:bg-orange-900/30 rounded-full flex items-center justify-center">
+                            <svg class="w-6 h-6 text-orange-600 dark:text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="mt-4 text-sm text-gray-500 dark:text-gray-400">
+                        {{ user?.position_name || 'Должность не указана' }}
+                    </div>
+                    <Link :href="route('profile.edit')" class="mt-4 inline-block text-sm text-blue-600 dark:text-blue-400 hover:underline">
+                        Редактировать →
+                    </Link>
                 </div>
             </div>
 
@@ -87,9 +177,11 @@
                             <span class="text-gray-600 dark:text-gray-400">Отдел:</span>
                             <span class="font-medium text-gray-900 dark:text-white">{{ user?.department_name || user?.department || '—' }}</span>
                         </div>
-                        <div v-if="user?.position_level" class="flex justify-between items-center pb-2 border-b border-gray-200 dark:border-gray-700">
-                            <span class="text-gray-600 dark:text-gray-400">Уровень:</span>
-                            <span class="font-medium text-gray-900 dark:text-white">{{ getLevelName(user.position_level) }}</span>
+                        <div v-if="user?.scoring_department" class="flex justify-between items-center pb-2 border-b border-gray-200 dark:border-gray-700">
+                            <span class="text-gray-600 dark:text-gray-400">Подотдел:</span>
+                            <span class="font-medium text-purple-600 dark:text-purple-400">
+                                {{ user.scoring_department === 'constructor' ? 'Конструкторы' : 'Дизайнеры' }}
+                            </span>
                         </div>
                         <div class="flex justify-between items-center">
                             <span class="text-gray-600 dark:text-gray-400">Роль:</span>
@@ -101,7 +193,7 @@
                     </div>
                 </div>
 
-                <!-- Статистика пользователя -->
+                <!-- Активность -->
                 <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 transition-colors duration-300">
                     <h2 class="text-lg font-semibold mb-4 flex items-center text-gray-900 dark:text-white">
                         <svg class="w-5 h-5 mr-2 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -187,7 +279,7 @@
             <!-- Быстрые действия -->
             <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-8 transition-colors duration-300">
                 <h2 class="text-xl font-bold mb-4 text-gray-900 dark:text-white">Быстрые действия</h2>
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                     <Link :href="route('profile.edit')"
                           class="flex items-center p-3 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg transition group">
                         <div class="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center mr-3 group-hover:bg-blue-200 dark:group-hover:bg-blue-800/50 transition">
@@ -201,29 +293,48 @@
                         </div>
                     </Link>
 
-                    <div class="flex items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg cursor-not-allowed opacity-50">
-                        <div class="w-10 h-10 bg-gray-100 dark:bg-gray-600 rounded-lg flex items-center justify-center mr-3">
-                            <svg class="w-5 h-5 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
+                    <!-- Кнопка открытия модального окна создания задачи -->
+                    <button
+                        @click="openCreateTaskModal"
+                        class="flex items-center p-3 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg transition group"
+                    >
+                        <div class="w-10 h-10 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center justify-center mr-3 group-hover:bg-green-200 dark:group-hover:bg-green-800/50 transition">
+                            <svg class="w-5 h-5 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
                             </svg>
                         </div>
                         <div>
-                            <div class="font-medium text-gray-400 dark:text-gray-500">Уведомления</div>
-                            <div class="text-sm text-gray-400 dark:text-gray-500">Скоро будет доступно</div>
+                            <div class="font-medium text-gray-900 dark:text-white">Создать задачу</div>
+                            <div class="text-sm text-gray-500 dark:text-gray-400">Добавить новую задачу</div>
                         </div>
-                    </div>
+                    </button>
 
-                    <div class="flex items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg cursor-not-allowed opacity-50">
-                        <div class="w-10 h-10 bg-gray-100 dark:bg-gray-600 rounded-lg flex items-center justify-center mr-3">
-                            <svg class="w-5 h-5 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    <Link :href="route('audits.create')"
+                          class="flex items-center p-3 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg transition group">
+                        <div class="w-10 h-10 bg-purple-100 dark:bg-purple-900/30 rounded-lg flex items-center justify-center mr-3 group-hover:bg-purple-200 dark:group-hover:bg-purple-800/50 transition">
+                            <svg class="w-5 h-5 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path>
                             </svg>
                         </div>
                         <div>
-                            <div class="font-medium text-gray-400 dark:text-gray-500">Документы</div>
-                            <div class="text-sm text-gray-400 dark:text-gray-500">Скоро будет доступно</div>
+                            <div class="font-medium text-gray-900 dark:text-white">Создать аудит</div>
+                            <div class="text-sm text-gray-500 dark:text-gray-400">Добавить выездной аудит</div>
                         </div>
-                    </div>
+                    </Link>
+
+                    <Link :href="route('scoring.index')"
+                          class="flex items-center p-3 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg transition group">
+                        <div class="w-10 h-10 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg flex items-center justify-center mr-3 group-hover:bg-yellow-200 dark:group-hover:bg-yellow-800/50 transition">
+                            <svg class="w-5 h-5 text-yellow-600 dark:text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                            </svg>
+                        </div>
+                        <div>
+                            <div class="font-medium text-gray-900 dark:text-white">Заполнить ведомость</div>
+                            <div class="text-sm text-gray-500 dark:text-gray-400">Внести баллы за месяц</div>
+                        </div>
+                    </Link>
 
                     <button @click="logout"
                             class="flex items-center p-3 bg-gray-50 dark:bg-gray-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition group">
@@ -250,8 +361,7 @@
                     Администрирование
                 </h2>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <!-- Управление пользователями -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                     <Link :href="route('admin.users')"
                           class="flex items-center justify-between p-4 bg-purple-50 dark:bg-purple-900/20 hover:bg-purple-100 dark:hover:bg-purple-900/30 rounded-lg transition group">
                         <div>
@@ -263,7 +373,6 @@
                         </svg>
                     </Link>
 
-                    <!-- Отделы -->
                     <Link :href="route('admin.departments.index')"
                           class="flex items-center justify-between p-4 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-lg transition group">
                         <div>
@@ -275,7 +384,6 @@
                         </svg>
                     </Link>
 
-                    <!-- Должности -->
                     <Link :href="route('admin.positions.index')"
                           class="flex items-center justify-between p-4 bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/30 rounded-lg transition group">
                         <div>
@@ -287,7 +395,17 @@
                         </svg>
                     </Link>
 
-                    <!-- Статистика -->
+                    <Link :href="route('admin.scoring.categories')"
+                          class="flex items-center justify-between p-4 bg-yellow-50 dark:bg-yellow-900/20 hover:bg-yellow-100 dark:hover:bg-yellow-900/30 rounded-lg transition group">
+                        <div>
+                            <div class="font-semibold text-yellow-900 dark:text-yellow-300">Категории баллов</div>
+                            <div class="text-sm text-yellow-600 dark:text-yellow-400">Настройка системы начисления</div>
+                        </div>
+                        <svg class="w-5 h-5 text-yellow-600 dark:text-yellow-400 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                        </svg>
+                    </Link>
+
                     <Link :href="route('admin.statistics')"
                           class="flex items-center justify-between p-4 bg-orange-50 dark:bg-orange-900/20 hover:bg-orange-100 dark:hover:bg-orange-900/30 rounded-lg transition group">
                         <div>
@@ -339,17 +457,63 @@
                 </div>
             </div>
         </div>
+
+        <!-- Модальное окно создания задачи -->
+        <CreateTaskModal
+            :show="showCreateModal"
+            :users="users"
+            :tags="tags"
+            :projects="projects"
+            @close="closeCreateTaskModal"
+            @created="onTaskCreated"
+        />
     </AppLayout>
 </template>
 
 <script setup>
 import { Head, Link, router, usePage } from '@inertiajs/vue3'
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import CreateTaskModal from '@/Components/Tasks/CreateTaskModal.vue'
 
 const page = usePage()
 const user = computed(() => page.props.auth?.user ?? null)
 const stats = computed(() => page.props.stats ?? null)
+
+// Получаем статистику из пропсов
+const taskStats = computed(() => ({
+    active: page.props.taskStats?.active || 0,
+    total: page.props.taskStats?.total || 0
+}))
+
+const auditStats = computed(() => ({
+    active: page.props.auditStats?.active || 0,
+    total: page.props.auditStats?.total || 0
+}))
+
+const scoringStats = computed(() => ({
+    currentMonthPoints: page.props.scoringStats?.currentMonthPoints || 0,
+    hasSheet: page.props.scoringStats?.hasSheet || false
+}))
+
+// Данные для модального окна создания задачи
+const showCreateModal = ref(false)
+const users = computed(() => page.props.users || [])
+const tags = computed(() => page.props.tags || [])
+const projects = computed(() => page.props.projects || [])
+
+const openCreateTaskModal = () => {
+    showCreateModal.value = true
+}
+
+const closeCreateTaskModal = () => {
+    showCreateModal.value = false
+}
+
+const onTaskCreated = () => {
+    closeCreateTaskModal()
+    router.reload()
+}
 
 // Получение уровня должности на русском
 const getLevelName = (level) => {
@@ -366,10 +530,6 @@ const getLevelName = (level) => {
 // Проверка ролей пользователя
 const isAdmin = computed(() => {
     return user.value?.roles?.includes('admin') || user.value?.role === 'admin'
-})
-
-const isManager = computed(() => {
-    return user.value?.roles?.includes('manager') || user.value?.role === 'manager'
 })
 
 // Получение названия роли на русском

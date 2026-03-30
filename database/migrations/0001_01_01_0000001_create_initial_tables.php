@@ -73,6 +73,10 @@ return new class extends Migration
                     ->after('department_id')
                     ->constrained('positions')
                     ->nullOnDelete();
+                // Добавляем поле для подотдела системы подсчета баллов
+                $table->enum('scoring_department', ['constructor', 'designer'])
+                    ->nullable()
+                    ->after('position_id');
             });
         }
 
@@ -319,9 +323,87 @@ return new class extends Migration
             });
         }
 
+        // ==================== СИСТЕМА ПОДСЧЕТА БАЛЛОВ ====================
+
+        // 17. Таблица категорий баллов (с базовыми баллами)
+        if (!Schema::hasTable('scoring_categories')) {
+            Schema::create('scoring_categories', function (Blueprint $table) {
+                $table->id();
+                $table->string('name');
+                $table->text('description')->nullable();
+                $table->enum('type', ['constructor', 'designer', 'common'])->default('constructor');
+                $table->decimal('base_points', 8, 2)->default(0)->comment('Базовые баллы за категорию');
+                $table->decimal('points', 8, 2)->default(0)->comment('Дополнительные баллы за подкатегорию');
+                $table->string('unit')->default('шт');
+                $table->foreignId('parent_id')->nullable()->constrained('scoring_categories')->nullOnDelete();
+                $table->boolean('is_multiselect')->default(false);
+                $table->boolean('is_active')->default(true);
+                $table->integer('sort_order')->default(0);
+                $table->timestamps();
+
+                $table->index(['type', 'is_active']);
+                $table->index('parent_id');
+            });
+        }
+
+        // 18. Таблица ведомостей
+        if (!Schema::hasTable('scoring_sheets')) {
+            Schema::create('scoring_sheets', function (Blueprint $table) {
+                $table->id();
+                $table->foreignId('user_id')->constrained('users')->cascadeOnDelete();
+                $table->date('period_date');
+                $table->enum('status', ['draft', 'confirmed', 'approved'])->default('draft');
+                $table->decimal('total_points', 10, 2)->default(0);
+                $table->timestamp('confirmed_at')->nullable();
+                $table->foreignId('approved_by')->nullable()->constrained('users')->nullOnDelete();
+                $table->text('notes')->nullable();
+                $table->timestamps();
+
+                $table->unique(['user_id', 'period_date']);
+                $table->index(['status', 'period_date']);
+                $table->index('user_id');
+            });
+        }
+
+        // 19. Таблица записей выполненных работ (с metadata)
+        if (!Schema::hasTable('scoring_entries')) {
+            Schema::create('scoring_entries', function (Blueprint $table) {
+                $table->id();
+                $table->foreignId('sheet_id')->constrained('scoring_sheets')->cascadeOnDelete();
+                $table->foreignId('category_id')->constrained('scoring_categories')->cascadeOnDelete();
+                $table->string('request_number')->nullable();
+                $table->string('counterparty')->nullable();
+                $table->string('manager_name')->nullable();
+                $table->integer('quantity')->default(1);
+                $table->decimal('points', 8, 2)->default(0);
+                $table->text('notes')->nullable();
+                $table->json('metadata')->nullable()->comment('Хранит выбранные подкатегории и доп. информацию');
+                $table->timestamps();
+
+                $table->index('sheet_id');
+                $table->index('category_id');
+                $table->index('request_number');
+            });
+        }
+
+        // 20. Таблица вариантов конструкции
+        if (!Schema::hasTable('scoring_variants')) {
+            Schema::create('scoring_variants', function (Blueprint $table) {
+                $table->id();
+                $table->foreignId('entry_id')->constrained('scoring_entries')->cascadeOnDelete();
+                $table->string('name');
+                $table->integer('quantity')->default(1);
+                $table->decimal('points', 8, 2)->default(0);
+                $table->integer('sort_order')->default(0);
+                $table->timestamps();
+
+                $table->index('entry_id');
+            });
+        }
+
         // ==================== СИСТЕМНЫЕ ТАБЛИЦЫ LARAVEL ====================
 
-        // 17. Таблица для сброса паролей
+        // 21. Таблица для сброса паролей
         if (!Schema::hasTable('password_reset_tokens')) {
             Schema::create('password_reset_tokens', function (Blueprint $table) {
                 $table->string('email')->primary();
@@ -330,7 +412,7 @@ return new class extends Migration
             });
         }
 
-        // 18. Таблица для сессий
+        // 22. Таблица для сессий
         if (!Schema::hasTable('sessions')) {
             Schema::create('sessions', function (Blueprint $table) {
                 $table->string('id')->primary();
@@ -342,7 +424,7 @@ return new class extends Migration
             });
         }
 
-        // 19. Таблица для кэша
+        // 23. Таблица для кэша
         if (!Schema::hasTable('cache')) {
             Schema::create('cache', function (Blueprint $table) {
                 $table->string('key')->primary();
@@ -359,7 +441,7 @@ return new class extends Migration
             });
         }
 
-        // 20. Таблица для очередей
+        // 24. Таблица для очередей
         if (!Schema::hasTable('jobs')) {
             Schema::create('jobs', function (Blueprint $table) {
                 $table->id();
@@ -401,11 +483,12 @@ return new class extends Migration
 
         // ==================== ДОПОЛНИТЕЛЬНЫЕ ОПТИМИЗАЦИИ ====================
 
-        // 21. Добавляем отсутствующие индексы для существующих таблиц
+        // 25. Добавляем отсутствующие индексы для существующих таблиц
         if (Schema::hasTable('users') && !Schema::hasIndex('users', 'users_email_verified_at_index')) {
             Schema::table('users', function (Blueprint $table) {
                 $table->index('email_verified_at');
                 $table->index('approved_at');
+                $table->index('scoring_department');
             });
         }
 
@@ -421,12 +504,206 @@ return new class extends Migration
                 $table->index('level');
             });
         }
+
+        // ==================== НАЧАЛЬНОЕ НАПОЛНЕНИЕ КАТЕГОРИЙ ====================
+
+        $this->seedCategories();
+    }
+
+    /**
+     * Начальное наполнение категорий баллов с базовыми баллами
+     */
+    private function seedCategories(): void
+    {
+        // Проверяем, есть ли уже категории
+        if (\App\Models\ScoringCategory::exists()) {
+            return;
+        }
+
+        // Категории для конструкторов с базовыми баллами
+        $constructorCategories = [
+            [
+                'name' => 'Конструкция из каталога ФЕФКО',
+                'type' => 'constructor',
+                'base_points' => 1.0,  // Базовый балл за выбор этой категории
+                'is_multiselect' => false,
+                'sort_order' => 1,
+                'children' => [
+                    ['name' => 'Проектирование по размерам, чертежам клиента', 'points' => 0],
+                    ['name' => 'Проектирование по образцам продукта клиента', 'points' => 0.5],
+                    ['name' => 'Проектирование по образцам упаковки клиента', 'points' => 0.5],
+                    ['name' => 'Конструкция из двух элементов крышка-дно', 'points' => 0.5],
+                ]
+            ],
+            [
+                'name' => 'Конструкция не из каталога ФЕФКО',
+                'type' => 'constructor',
+                'base_points' => 3.0,  // Базовый балл за выбор этой категории
+                'is_multiselect' => false,
+                'sort_order' => 2,
+                'children' => [
+                    ['name' => 'Проектирование по размерам, чертежам клиента', 'points' => 0],
+                    ['name' => 'Проектирование по образцам клиента', 'points' => 0.5],
+                    ['name' => 'Проектирование по образцам упаковки клиента', 'points' => 1],
+                    ['name' => 'Конструкция из двух элементов. Крышка (ФЕФКО)-дно (НЕТ)', 'points' => 1],
+                    ['name' => 'Конструкция из двух элементов. Крышка-дно (НЕ ФЕФКО)', 'points' => 3],
+                ]
+            ],
+            [
+                'name' => 'Дополнительные элементы конструкции',
+                'type' => 'constructor',
+                'base_points' => 0,  // Базовый балл = 0, баллы только за выбранные элементы
+                'is_multiselect' => true,
+                'sort_order' => 3,
+                'children' => [
+                    ['name' => 'Добавление решетки RODA', 'points' => 0.5],
+                    ['name' => 'Добавление решетки, ложемента. ВЫСЕЧКА', 'points' => 1],
+                    ['name' => 'Добавление перфорации', 'points' => 0.5],
+                    ['name' => 'Добавление отрывной ленты, самоклеющейся ленты', 'points' => 0.5],
+                    ['name' => 'Добавление окошек', 'points' => 0.5],
+                    ['name' => 'Оптимизация конструкции упаковки', 'points' => 0.5],
+                    ['name' => 'Изменение размеров стандартной (ФЕФКО) упаковки', 'points' => 0.5],
+                    ['name' => 'Добавление замочков', 'points' => 0.5],
+                ]
+            ],
+            [
+                'name' => 'Специальные категории',
+                'type' => 'constructor',
+                'base_points' => 0,
+                'is_multiselect' => true,
+                'sort_order' => 4,
+                'children' => [
+                    ['name' => 'Новая конструкция, ранее не используемая', 'points' => 6],
+                    ['name' => 'Тестирование новых перспективных конструкций', 'points' => 3],
+                    ['name' => 'Ламинация, Сшивка, Склейка и тестирование на линиях', 'points' => 1.5],
+                    ['name' => 'Вариант на ИнЛайн', 'points' => 0.5],
+                ]
+            ],
+            [
+                'name' => 'Командировки',
+                'type' => 'constructor',
+                'base_points' => 0,
+                'is_multiselect' => false,
+                'sort_order' => 5,
+                'children' => [
+                    ['name' => 'Командировка (1/2 дня)', 'points' => 1.5, 'unit' => 'день'],
+                    ['name' => 'Командировка (1 день)', 'points' => 3, 'unit' => 'день'],
+                ]
+            ],
+        ];
+
+        // Категории для дизайнеров с базовыми баллами
+        $designerCategories = [
+            [
+                'name' => 'Разработка макетов',
+                'type' => 'designer',
+                'base_points' => 0,
+                'is_multiselect' => true,
+                'sort_order' => 1,
+                'children' => [
+                    ['name' => 'Разработка макета (стандартный)', 'points' => 2],
+                    ['name' => 'Редизайн', 'points' => 1.5],
+                    ['name' => 'Адаптация под разные форматы', 'points' => 1],
+                    ['name' => 'Сложный макет (многостраничный)', 'points' => 4],
+                ]
+            ],
+            [
+                'name' => 'Печатная продукция',
+                'type' => 'designer',
+                'base_points' => 0,
+                'is_multiselect' => true,
+                'sort_order' => 2,
+                'children' => [
+                    ['name' => 'Разработка этикетки', 'points' => 3],
+                    ['name' => 'Разработка упаковки', 'points' => 2],
+                    ['name' => 'Брошюра/каталог', 'points' => 4],
+                    ['name' => 'Плакат/баннер', 'points' => 1.5],
+                ]
+            ],
+            [
+                'name' => 'Цифровой дизайн',
+                'type' => 'designer',
+                'base_points' => 0,
+                'is_multiselect' => true,
+                'sort_order' => 3,
+                'children' => [
+                    ['name' => 'Баннеры для сайта', 'points' => 1.5],
+                    ['name' => 'Презентация', 'points' => 2],
+                    ['name' => 'Дизайн сайта (страница)', 'points' => 5],
+                    ['name' => 'Инфографика', 'points' => 2.5],
+                ]
+            ],
+            [
+                'name' => 'Фото/Видео',
+                'type' => 'designer',
+                'base_points' => 0,
+                'is_multiselect' => true,
+                'sort_order' => 4,
+                'children' => [
+                    ['name' => 'Фотосъемка продукции', 'points' => 3],
+                    ['name' => 'Видеосъемка/монтаж', 'points' => 4],
+                    ['name' => 'Ретушь фотографий', 'points' => 1],
+                ]
+            ],
+        ];
+
+        // Создаем категории для конструкторов
+        foreach ($constructorCategories as $parentData) {
+            $parent = \App\Models\ScoringCategory::create([
+                'name' => $parentData['name'],
+                'type' => $parentData['type'],
+                'base_points' => $parentData['base_points'],
+                'is_multiselect' => $parentData['is_multiselect'],
+                'sort_order' => $parentData['sort_order'],
+                'is_active' => true,
+            ]);
+
+            foreach ($parentData['children'] as $child) {
+                \App\Models\ScoringCategory::create([
+                    'name' => $child['name'],
+                    'type' => $parentData['type'],
+                    'points' => $child['points'],
+                    'unit' => $child['unit'] ?? 'шт',
+                    'parent_id' => $parent->id,
+                    'is_active' => true,
+                ]);
+            }
+        }
+
+        // Создаем категории для дизайнеров
+        foreach ($designerCategories as $parentData) {
+            $parent = \App\Models\ScoringCategory::create([
+                'name' => $parentData['name'],
+                'type' => $parentData['type'],
+                'base_points' => $parentData['base_points'],
+                'is_multiselect' => $parentData['is_multiselect'],
+                'sort_order' => $parentData['sort_order'],
+                'is_active' => true,
+            ]);
+
+            foreach ($parentData['children'] as $child) {
+                \App\Models\ScoringCategory::create([
+                    'name' => $child['name'],
+                    'type' => $parentData['type'],
+                    'points' => $child['points'],
+                    'unit' => $child['unit'] ?? 'шт',
+                    'parent_id' => $parent->id,
+                    'is_active' => true,
+                ]);
+            }
+        }
     }
 
     public function down(): void
     {
         // Отключаем проверку внешних ключей для безопасного удаления
         DB::statement('SET FOREIGN_KEY_CHECKS=0');
+
+        // Удаляем таблицы системы подсчета баллов
+        Schema::dropIfExists('scoring_variants');
+        Schema::dropIfExists('scoring_entries');
+        Schema::dropIfExists('scoring_sheets');
+        Schema::dropIfExists('scoring_categories');
 
         // Удаляем новые таблицы задач в обратном порядке
         Schema::dropIfExists('task_tag');
@@ -453,6 +730,13 @@ return new class extends Migration
         Schema::dropIfExists('cache');
         Schema::dropIfExists('sessions');
         Schema::dropIfExists('password_reset_tokens');
+
+        // Удаляем поле из users
+        if (Schema::hasColumn('users', 'scoring_department')) {
+            Schema::table('users', function (Blueprint $table) {
+                $table->dropColumn('scoring_department');
+            });
+        }
 
         // Удаляем основные таблицы
         Schema::dropIfExists('positions');
