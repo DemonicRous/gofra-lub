@@ -5,55 +5,39 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ScoringEntry extends Model
 {
+    protected $table = 'scoring_entries';
+
     protected $fillable = [
-        'sheet_id', 'category_id', 'request_number', 'counterparty',
-        'manager_name', 'quantity', 'points', 'notes'
+        'sheet_id', 'request_id', 'variant_id', 'category_id',
+        'quantity', 'points', 'notes', 'metadata'
     ];
 
     protected $casts = [
         'quantity' => 'integer',
         'points' => 'decimal:2',
+        'metadata' => 'array',
     ];
 
-    // Связи
     public function sheet(): BelongsTo
     {
-        return $this->belongsTo(ScoringSheet::class);
+        return $this->belongsTo(ScoringSheet::class, 'sheet_id');
+    }
+
+    public function request(): BelongsTo
+    {
+        return $this->belongsTo(ScoringRequest::class, 'request_id');
+    }
+
+    public function variant(): BelongsTo
+    {
+        return $this->belongsTo(ScoringVariant::class, 'variant_id');
     }
 
     public function category(): BelongsTo
     {
-        return $this->belongsTo(ScoringCategory::class);
-    }
-
-    public function variants(): HasMany
-    {
-        return $this->hasMany(ScoringVariant::class, 'entry_id')->orderBy('sort_order');
-    }
-
-    // Помощники
-    public function calculatePoints(): void
-    {
-        $basePoints = $this->category->points * $this->quantity;
-        $variantsPoints = $this->variants()->sum('points');
-        $this->points = $basePoints + $variantsPoints;
-        $this->save();
-
-        // Обновляем общую сумму в ведомости
-        $this->sheet->recalculateTotal();
-    }
-
-    public function getCategoryFullNameAttribute(): string
-    {
-        return $this->category->full_name;
-    }
-
-    public function getPointsFormattedAttribute(): string
-    {
-        return number_format($this->points, 2, '.', '');
+        return $this->belongsTo(ScoringCategory::class, 'category_id');
     }
 }

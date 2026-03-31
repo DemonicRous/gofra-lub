@@ -73,7 +73,6 @@ return new class extends Migration
                     ->after('department_id')
                     ->constrained('positions')
                     ->nullOnDelete();
-                // Добавляем поле для подотдела системы подсчета баллов
                 $table->enum('scoring_department', ['constructor', 'designer'])
                     ->nullable()
                     ->after('position_id');
@@ -82,7 +81,6 @@ return new class extends Migration
 
         // 5. Добавляем внешние ключи к departments
         if (Schema::hasTable('departments')) {
-            // Внешний ключ для head_id
             $headForeignKey = DB::select("
                 SELECT CONSTRAINT_NAME
                 FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
@@ -101,7 +99,6 @@ return new class extends Migration
                 });
             }
 
-            // Внешний ключ для parent_id
             $parentForeignKey = DB::select("
                 SELECT CONSTRAINT_NAME
                 FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
@@ -121,15 +118,15 @@ return new class extends Migration
             }
         }
 
-        // ==================== НОВАЯ ОПТИМИЗИРОВАННАЯ СИСТЕМА ЗАДАЧ ====================
+        // ==================== СИСТЕМА ЗАДАЧ ====================
 
-        // 6. Удаляем старые таблицы задач, если они существуют
+        // Удаляем старые таблицы задач, если они существуют
         Schema::dropIfExists('todo_participants');
         Schema::dropIfExists('todo_subtasks');
         Schema::dropIfExists('todo_comments');
         Schema::dropIfExists('todos');
 
-        // 7. Создаем таблицу проектов
+        // Создаем таблицу проектов
         if (!Schema::hasTable('projects')) {
             Schema::create('projects', function (Blueprint $table) {
                 $table->id();
@@ -140,52 +137,37 @@ return new class extends Migration
                 $table->json('settings')->nullable();
                 $table->timestamps();
                 $table->softDeletes();
-
                 $table->index('owner_id');
                 $table->index('name');
             });
         }
 
-        // 8. Создаем оптимизированную таблицу задач
+        // Создаем таблицу задач
         if (!Schema::hasTable('tasks')) {
             Schema::create('tasks', function (Blueprint $table) {
                 $table->id();
                 $table->uuid('uuid')->unique();
-
-                // Основные поля
                 $table->string('title');
                 $table->text('description')->nullable();
                 $table->string('type')->default('task');
                 $table->string('status')->default('todo');
                 $table->string('priority')->default('medium');
-
-                // Видимость и права доступа
                 $table->string('visibility')->default('personal');
                 $table->json('allowed_roles')->nullable();
                 $table->json('allowed_departments')->nullable();
-
-                // Сроки
                 $table->timestamp('due_date')->nullable();
                 $table->timestamp('reminder_at')->nullable();
                 $table->timestamp('started_at')->nullable();
                 $table->timestamp('completed_at')->nullable();
-
-                // Повторяющиеся задачи
                 $table->string('recurrence_pattern')->nullable();
                 $table->json('recurrence_settings')->nullable();
                 $table->unsignedBigInteger('parent_task_id')->nullable();
-
-                // Прогресс
                 $table->unsignedTinyInteger('progress')->default(0);
                 $table->json('metadata')->nullable();
-
-                // Связи
                 $table->foreignId('created_by')->constrained('users')->cascadeOnDelete();
                 $table->foreignId('assigned_to')->nullable()->constrained('users')->nullOnDelete();
                 $table->foreignId('department_id')->nullable()->constrained('departments')->nullOnDelete();
                 $table->foreignId('project_id')->nullable()->constrained('projects')->nullOnDelete();
-
-                // Оптимизированные индексы для быстрого поиска
                 $table->index(['status', 'priority', 'due_date']);
                 $table->index(['visibility', 'created_by']);
                 $table->index(['assigned_to', 'status']);
@@ -194,13 +176,12 @@ return new class extends Migration
                 $table->index('uuid');
                 $table->index('due_date');
                 $table->index('reminder_at');
-
                 $table->timestamps();
                 $table->softDeletes();
             });
         }
 
-        // 9. Добавляем само-ссылку для parent_task_id
+        // Добавляем само-ссылку для parent_task_id
         if (Schema::hasTable('tasks') && !Schema::hasColumn('tasks', 'parent_task_id')) {
             $parentTaskForeignKey = DB::select("
                 SELECT CONSTRAINT_NAME
@@ -221,23 +202,22 @@ return new class extends Migration
             }
         }
 
-        // 10. Таблица участников задач
+        // Таблица участников задач
         if (!Schema::hasTable('task_participants')) {
             Schema::create('task_participants', function (Blueprint $table) {
                 $table->id();
                 $table->foreignId('task_id')->constrained('tasks')->cascadeOnDelete();
                 $table->foreignId('user_id')->constrained('users')->cascadeOnDelete();
-                $table->string('role')->default('participant'); // participant, reviewer, observer
+                $table->string('role')->default('participant');
                 $table->json('permissions')->nullable();
                 $table->timestamps();
-
                 $table->unique(['task_id', 'user_id']);
                 $table->index(['user_id', 'role']);
                 $table->index('task_id');
             });
         }
 
-        // 11. Таблица подзадач
+        // Таблица подзадач
         if (!Schema::hasTable('task_subtasks')) {
             Schema::create('task_subtasks', function (Blueprint $table) {
                 $table->id();
@@ -246,13 +226,12 @@ return new class extends Migration
                 $table->foreignId('task_id')->constrained('tasks')->cascadeOnDelete();
                 $table->integer('order')->default(0);
                 $table->timestamps();
-
                 $table->index(['task_id', 'is_completed']);
                 $table->index('task_id');
             });
         }
 
-        // 12. Таблица комментариев
+        // Таблица комментариев
         if (!Schema::hasTable('task_comments')) {
             Schema::create('task_comments', function (Blueprint $table) {
                 $table->id();
@@ -261,13 +240,12 @@ return new class extends Migration
                 $table->foreignId('user_id')->constrained('users')->cascadeOnDelete();
                 $table->json('mentions')->nullable();
                 $table->timestamps();
-
                 $table->index(['task_id', 'created_at']);
                 $table->index('user_id');
             });
         }
 
-        // 13. Таблица истории изменений задач
+        // Таблица истории изменений
         if (!Schema::hasTable('task_histories')) {
             Schema::create('task_histories', function (Blueprint $table) {
                 $table->id();
@@ -277,39 +255,36 @@ return new class extends Migration
                 $table->text('old_value')->nullable();
                 $table->text('new_value')->nullable();
                 $table->timestamps();
-
                 $table->index(['task_id', 'created_at']);
                 $table->index('user_id');
             });
         }
 
-        // 14. Таблица тегов
+        // Таблица тегов
         if (!Schema::hasTable('tags')) {
             Schema::create('tags', function (Blueprint $table) {
                 $table->id();
                 $table->string('name')->unique();
                 $table->string('color')->default('#3B82F6');
                 $table->timestamps();
-
                 $table->index('name');
             });
         }
 
-        // 15. Связующая таблица задач и тегов
+        // Связующая таблица задач и тегов
         if (!Schema::hasTable('task_tag')) {
             Schema::create('task_tag', function (Blueprint $table) {
                 $table->id();
                 $table->foreignId('task_id')->constrained('tasks')->cascadeOnDelete();
                 $table->foreignId('tag_id')->constrained('tags')->cascadeOnDelete();
                 $table->timestamps();
-
                 $table->unique(['task_id', 'tag_id']);
                 $table->index('task_id');
                 $table->index('tag_id');
             });
         }
 
-        // 16. Таблица участников проектов
+        // Таблица участников проектов
         if (!Schema::hasTable('project_members')) {
             Schema::create('project_members', function (Blueprint $table) {
                 $table->id();
@@ -317,7 +292,6 @@ return new class extends Migration
                 $table->foreignId('user_id')->constrained('users')->cascadeOnDelete();
                 $table->string('role')->default('member');
                 $table->timestamps();
-
                 $table->unique(['project_id', 'user_id']);
                 $table->index(['user_id', 'role']);
             });
@@ -325,28 +299,27 @@ return new class extends Migration
 
         // ==================== СИСТЕМА ПОДСЧЕТА БАЛЛОВ ====================
 
-        // 17. Таблица категорий баллов (с базовыми баллами)
+        // Таблица категорий баллов
         if (!Schema::hasTable('scoring_categories')) {
             Schema::create('scoring_categories', function (Blueprint $table) {
                 $table->id();
                 $table->string('name');
                 $table->text('description')->nullable();
                 $table->enum('type', ['constructor', 'designer', 'common'])->default('constructor');
-                $table->decimal('base_points', 8, 2)->default(0)->comment('Базовые баллы за категорию');
-                $table->decimal('points', 8, 2)->default(0)->comment('Дополнительные баллы за подкатегорию');
+                $table->decimal('base_points', 8, 2)->default(0);
+                $table->decimal('points', 8, 2)->default(0);
                 $table->string('unit')->default('шт');
                 $table->foreignId('parent_id')->nullable()->constrained('scoring_categories')->nullOnDelete();
                 $table->boolean('is_multiselect')->default(false);
                 $table->boolean('is_active')->default(true);
                 $table->integer('sort_order')->default(0);
                 $table->timestamps();
-
                 $table->index(['type', 'is_active']);
                 $table->index('parent_id');
             });
         }
 
-        // 18. Таблица ведомостей
+        // Таблица ведомостей
         if (!Schema::hasTable('scoring_sheets')) {
             Schema::create('scoring_sheets', function (Blueprint $table) {
                 $table->id();
@@ -358,52 +331,182 @@ return new class extends Migration
                 $table->foreignId('approved_by')->nullable()->constrained('users')->nullOnDelete();
                 $table->text('notes')->nullable();
                 $table->timestamps();
-
                 $table->unique(['user_id', 'period_date']);
                 $table->index(['status', 'period_date']);
                 $table->index('user_id');
             });
         }
 
-        // 19. Таблица записей выполненных работ (с metadata)
-        if (!Schema::hasTable('scoring_entries')) {
-            Schema::create('scoring_entries', function (Blueprint $table) {
+        // Таблица заявок
+        if (!Schema::hasTable('scoring_requests')) {
+            Schema::create('scoring_requests', function (Blueprint $table) {
                 $table->id();
                 $table->foreignId('sheet_id')->constrained('scoring_sheets')->cascadeOnDelete();
-                $table->foreignId('category_id')->constrained('scoring_categories')->cascadeOnDelete();
                 $table->string('request_number')->nullable();
                 $table->string('counterparty')->nullable();
                 $table->string('manager_name')->nullable();
-                $table->integer('quantity')->default(1);
-                $table->decimal('points', 8, 2)->default(0);
-                $table->text('notes')->nullable();
-                $table->json('metadata')->nullable()->comment('Хранит выбранные подкатегории и доп. информацию');
                 $table->timestamps();
-
                 $table->index('sheet_id');
-                $table->index('category_id');
                 $table->index('request_number');
             });
         }
 
-        // 20. Таблица вариантов конструкции
+        // Таблица вариантов конструкции
         if (!Schema::hasTable('scoring_variants')) {
             Schema::create('scoring_variants', function (Blueprint $table) {
                 $table->id();
-                $table->foreignId('entry_id')->constrained('scoring_entries')->cascadeOnDelete();
-                $table->string('name');
-                $table->integer('quantity')->default(1);
-                $table->decimal('points', 8, 2)->default(0);
+                $table->foreignId('request_id')->constrained('scoring_requests')->cascadeOnDelete();
+                $table->string('name')->nullable();
                 $table->integer('sort_order')->default(0);
                 $table->timestamps();
-
-                $table->index('entry_id');
+                $table->index('request_id');
             });
         }
 
-        // ==================== СИСТЕМНЫЕ ТАБЛИЦЫ LARAVEL ====================
+        // Таблица записей выполненных работ
+        if (!Schema::hasTable('scoring_entries')) {
+            Schema::create('scoring_entries', function (Blueprint $table) {
+                $table->id();
+                $table->foreignId('sheet_id')->constrained('scoring_sheets')->cascadeOnDelete();
+                $table->foreignId('request_id')->constrained('scoring_requests')->cascadeOnDelete();
+                $table->foreignId('variant_id')->constrained('scoring_variants')->cascadeOnDelete();
+                $table->foreignId('category_id')->constrained('scoring_categories')->cascadeOnDelete();
+                $table->integer('quantity')->default(1);
+                $table->decimal('points', 8, 2)->default(0);
+                $table->text('notes')->nullable();
+                $table->json('metadata')->nullable();
+                $table->timestamps();
+                $table->index('sheet_id');
+                $table->index('request_id');
+                $table->index('variant_id');
+                $table->index('category_id');
+            });
+        }
 
-        // 21. Таблица для сброса паролей
+        // Таблица менеджеров
+        if (!Schema::hasTable('managers')) {
+            Schema::create('managers', function (Blueprint $table) {
+                $table->id();
+                $table->string('last_name');
+                $table->string('first_name');
+                $table->string('patronymic')->nullable();
+                $table->string('full_name');
+                $table->string('short_name');
+                $table->string('position')->nullable();
+                $table->boolean('is_active')->default(true);
+                $table->timestamps();
+                $table->index('full_name');
+                $table->index('last_name');
+                $table->index('is_active');
+            });
+        }
+
+        // ==================== ТАБЛИЦЫ АУДИТОВ ====================
+
+        // Таблица аудитов
+        if (!Schema::hasTable('audits')) {
+            Schema::create('audits', function (Blueprint $table) {
+                $table->id();
+                $table->uuid('uuid')->unique();
+                $table->string('title');
+                $table->text('description')->nullable();
+                $table->text('findings')->nullable();
+                $table->text('recommendations')->nullable();
+                $table->string('client_name')->nullable();
+                $table->string('client_contact')->nullable();
+                $table->string('address')->nullable();
+                $table->string('object_name')->nullable();
+                $table->enum('status', ['draft', 'in_progress', 'completed', 'cancelled'])->default('draft');
+                $table->enum('audit_type', ['measurement', 'production_line', 'quality_check', 'consultation', 'other'])->default('measurement');
+                $table->date('audit_date')->nullable();
+                $table->time('start_time')->nullable();
+                $table->time('end_time')->nullable();
+                $table->timestamp('completed_at')->nullable();
+                $table->decimal('latitude', 10, 8)->nullable();
+                $table->decimal('longitude', 11, 8)->nullable();
+                $table->text('signature_data')->nullable();
+                $table->timestamp('signed_at')->nullable();
+                $table->foreignId('created_by')->constrained('users')->cascadeOnDelete();
+                $table->foreignId('assigned_to')->nullable()->constrained('users')->nullOnDelete();
+                $table->foreignId('department_id')->nullable()->constrained('departments')->nullOnDelete();
+                $table->foreignId('related_task_id')->nullable()->constrained('tasks')->nullOnDelete();
+                $table->timestamps();
+                $table->softDeletes();
+                $table->index(['status', 'audit_date']);
+                $table->index(['created_by', 'status']);
+                $table->index(['assigned_to', 'status']);
+                $table->index('audit_date');
+            });
+        }
+
+        // Таблица медиафайлов для аудитов
+        if (!Schema::hasTable('audit_media')) {
+            Schema::create('audit_media', function (Blueprint $table) {
+                $table->id();
+                $table->foreignId('audit_id')->constrained('audits')->cascadeOnDelete();
+                $table->foreignId('uploaded_by')->constrained('users')->cascadeOnDelete();
+                $table->string('filename');
+                $table->string('original_name');
+                $table->string('mime_type');
+                $table->string('disk')->default('public');
+                $table->string('path');
+                $table->unsignedBigInteger('size');
+                $table->enum('media_type', ['photo', 'video', 'document', 'drawing', 'other'])->default('photo');
+                $table->text('description')->nullable();
+                $table->json('metadata')->nullable();
+                $table->boolean('is_public')->default(true);
+                $table->integer('sort_order')->default(0);
+                $table->timestamps();
+                $table->index(['audit_id', 'media_type']);
+                $table->index('uploaded_by');
+            });
+        }
+
+        // Таблица комментариев к аудиту
+        if (!Schema::hasTable('audit_comments')) {
+            Schema::create('audit_comments', function (Blueprint $table) {
+                $table->id();
+                $table->foreignId('audit_id')->constrained('audits')->cascadeOnDelete();
+                $table->foreignId('user_id')->constrained('users')->cascadeOnDelete();
+                $table->text('content');
+                $table->json('mentions')->nullable();
+                $table->json('attachments')->nullable();
+                $table->timestamps();
+                $table->index(['audit_id', 'created_at']);
+                $table->index('user_id');
+            });
+        }
+
+        // Таблица связи комментариев с медиа
+        if (!Schema::hasTable('comment_media')) {
+            Schema::create('comment_media', function (Blueprint $table) {
+                $table->id();
+                $table->foreignId('comment_id')->constrained('audit_comments')->cascadeOnDelete();
+                $table->foreignId('media_id')->constrained('audit_media')->cascadeOnDelete();
+                $table->timestamps();
+                $table->unique(['comment_id', 'media_id']);
+            });
+        }
+
+        // Таблица шаблонов аудитов
+        if (!Schema::hasTable('audit_templates')) {
+            Schema::create('audit_templates', function (Blueprint $table) {
+                $table->id();
+                $table->string('name');
+                $table->text('description')->nullable();
+                $table->json('sections')->nullable();
+                $table->json('checklist')->nullable();
+                $table->enum('audit_type', ['measurement', 'production_line', 'quality_check', 'consultation', 'other'])->default('measurement');
+                $table->foreignId('created_by')->constrained('users')->cascadeOnDelete();
+                $table->boolean('is_active')->default(true);
+                $table->boolean('is_public')->default(false);
+                $table->timestamps();
+                $table->index('is_active');
+            });
+        }
+
+        // ==================== СИСТЕМНЫЕ ТАБЛИЦЫ ====================
+
         if (!Schema::hasTable('password_reset_tokens')) {
             Schema::create('password_reset_tokens', function (Blueprint $table) {
                 $table->string('email')->primary();
@@ -412,7 +515,6 @@ return new class extends Migration
             });
         }
 
-        // 22. Таблица для сессий
         if (!Schema::hasTable('sessions')) {
             Schema::create('sessions', function (Blueprint $table) {
                 $table->string('id')->primary();
@@ -424,7 +526,6 @@ return new class extends Migration
             });
         }
 
-        // 23. Таблица для кэша
         if (!Schema::hasTable('cache')) {
             Schema::create('cache', function (Blueprint $table) {
                 $table->string('key')->primary();
@@ -441,7 +542,6 @@ return new class extends Migration
             });
         }
 
-        // 24. Таблица для очередей
         if (!Schema::hasTable('jobs')) {
             Schema::create('jobs', function (Blueprint $table) {
                 $table->id();
@@ -481,9 +581,8 @@ return new class extends Migration
             });
         }
 
-        // ==================== ДОПОЛНИТЕЛЬНЫЕ ОПТИМИЗАЦИИ ====================
+        // ==================== ДОПОЛНИТЕЛЬНЫЕ ИНДЕКСЫ ====================
 
-        // 25. Добавляем отсутствующие индексы для существующих таблиц
         if (Schema::hasTable('users') && !Schema::hasIndex('users', 'users_email_verified_at_index')) {
             Schema::table('users', function (Blueprint $table) {
                 $table->index('email_verified_at');
@@ -507,25 +606,22 @@ return new class extends Migration
 
         // ==================== НАЧАЛЬНОЕ НАПОЛНЕНИЕ КАТЕГОРИЙ ====================
 
-        $this->seedCategories();
-    }
-
-    /**
-     * Начальное наполнение категорий баллов с базовыми баллами
-     */
-    private function seedCategories(): void
-    {
-        // Проверяем, есть ли уже категории
-        if (\App\Models\ScoringCategory::exists()) {
-            return;
+        if (class_exists(\App\Models\ScoringCategory::class) && !\App\Models\ScoringCategory::exists()) {
+            $this->seedCategories();
         }
 
-        // Категории для конструкторов с базовыми баллами
+        if (class_exists(\App\Models\Manager::class) && !\App\Models\Manager::exists()) {
+            $this->seedManagers();
+        }
+    }
+
+    private function seedCategories(): void
+    {
         $constructorCategories = [
             [
                 'name' => 'Конструкция из каталога ФЕФКО',
                 'type' => 'constructor',
-                'base_points' => 1.0,  // Базовый балл за выбор этой категории
+                'base_points' => 1.0,
                 'is_multiselect' => false,
                 'sort_order' => 1,
                 'children' => [
@@ -538,7 +634,7 @@ return new class extends Migration
             [
                 'name' => 'Конструкция не из каталога ФЕФКО',
                 'type' => 'constructor',
-                'base_points' => 3.0,  // Базовый балл за выбор этой категории
+                'base_points' => 3.0,
                 'is_multiselect' => false,
                 'sort_order' => 2,
                 'children' => [
@@ -552,7 +648,7 @@ return new class extends Migration
             [
                 'name' => 'Дополнительные элементы конструкции',
                 'type' => 'constructor',
-                'base_points' => 0,  // Базовый балл = 0, баллы только за выбранные элементы
+                'base_points' => 0,
                 'is_multiselect' => true,
                 'sort_order' => 3,
                 'children' => [
@@ -592,7 +688,6 @@ return new class extends Migration
             ],
         ];
 
-        // Категории для дизайнеров с базовыми баллами
         $designerCategories = [
             [
                 'name' => 'Разработка макетов',
@@ -647,7 +742,6 @@ return new class extends Migration
             ],
         ];
 
-        // Создаем категории для конструкторов
         foreach ($constructorCategories as $parentData) {
             $parent = \App\Models\ScoringCategory::create([
                 'name' => $parentData['name'],
@@ -670,7 +764,6 @@ return new class extends Migration
             }
         }
 
-        // Создаем категории для дизайнеров
         foreach ($designerCategories as $parentData) {
             $parent = \App\Models\ScoringCategory::create([
                 'name' => $parentData['name'],
@@ -694,18 +787,65 @@ return new class extends Migration
         }
     }
 
+    private function seedManagers(): void
+    {
+        $managers = [
+            ['last_name' => 'Гамова', 'first_name' => 'Евгения', 'patronymic' => 'Николаевна', 'position' => 'Менеджер отдела продаж'],
+            ['last_name' => 'Зубов', 'first_name' => 'Дмитрий', 'patronymic' => 'Евгеньевич', 'position' => 'Руководитель регионального направления продаж'],
+            ['last_name' => 'Котмаков', 'first_name' => 'Сергей', 'patronymic' => 'Сергеевич', 'position' => 'Руководитель регионального направления продаж'],
+            ['last_name' => 'Кургузова', 'first_name' => 'Юлия', 'patronymic' => 'Фёдоровна', 'position' => 'Руководитель регионального направления продаж'],
+            ['last_name' => 'Мельниченко', 'first_name' => 'Татьяна', 'patronymic' => 'Витальевна', 'position' => 'Менеджер отдела продаж'],
+            ['last_name' => 'Муминов', 'first_name' => 'Темур', 'patronymic' => 'Анварович', 'position' => 'Руководитель регионального направления продаж'],
+            ['last_name' => 'Романцов', 'first_name' => 'Дмитрий', 'patronymic' => 'Вячеславович', 'position' => 'Руководитель регионального направления продаж'],
+            ['last_name' => 'Старикова', 'first_name' => 'Елена', 'patronymic' => 'Александровна', 'position' => 'менеджер отдела продаж'],
+            ['last_name' => 'Сумина', 'first_name' => 'Анна', 'patronymic' => 'Александровна', 'position' => 'Менеджер отдела продаж'],
+            ['last_name' => 'Устинова', 'first_name' => 'Виктория', 'patronymic' => 'Александровна', 'position' => 'Менеджер отдела продаж'],
+            ['last_name' => 'Франц', 'first_name' => 'Анастасия', 'patronymic' => 'Евгеньевна', 'position' => 'Менеджер отдела продаж'],
+            ['last_name' => 'Химяк', 'first_name' => 'Елена', 'patronymic' => 'Николаевна', 'position' => 'Руководитель регионального направления продаж'],
+            ['last_name' => 'Кузьмин', 'first_name' => 'Олег', 'patronymic' => 'Анатольевич', 'position' => 'Руководитель регионального направления продаж'],
+            ['last_name' => 'Ляксина', 'first_name' => 'Анна', 'patronymic' => 'Александровна', 'position' => 'Дизайнер'],
+            ['last_name' => 'Чернов', 'first_name' => 'Александр', 'patronymic' => 'Алексеевич', 'position' => 'Технолог-конструктор'],
+        ];
+
+        foreach ($managers as $manager) {
+            $fullName = trim($manager['last_name'] . ' ' . $manager['first_name'] . ' ' . ($manager['patronymic'] ?? ''));
+            $shortName = $manager['last_name'] . ' ' . mb_substr($manager['first_name'], 0, 1) . '.';
+            if (!empty($manager['patronymic'])) {
+                $shortName .= mb_substr($manager['patronymic'], 0, 1) . '.';
+            }
+
+            \App\Models\Manager::create([
+                'last_name' => $manager['last_name'],
+                'first_name' => $manager['first_name'],
+                'patronymic' => $manager['patronymic'] ?? null,
+                'full_name' => $fullName,
+                'short_name' => $shortName,
+                'position' => $manager['position'],
+                'is_active' => true,
+            ]);
+        }
+    }
+
     public function down(): void
     {
-        // Отключаем проверку внешних ключей для безопасного удаления
         DB::statement('SET FOREIGN_KEY_CHECKS=0');
 
+        // Удаляем таблицы аудитов
+        Schema::dropIfExists('audit_templates');
+        Schema::dropIfExists('comment_media');
+        Schema::dropIfExists('audit_comments');
+        Schema::dropIfExists('audit_media');
+        Schema::dropIfExists('audits');
+
         // Удаляем таблицы системы подсчета баллов
-        Schema::dropIfExists('scoring_variants');
         Schema::dropIfExists('scoring_entries');
+        Schema::dropIfExists('scoring_variants');
+        Schema::dropIfExists('scoring_requests');
         Schema::dropIfExists('scoring_sheets');
         Schema::dropIfExists('scoring_categories');
+        Schema::dropIfExists('managers');
 
-        // Удаляем новые таблицы задач в обратном порядке
+        // Удаляем таблицы задач
         Schema::dropIfExists('task_tag');
         Schema::dropIfExists('tags');
         Schema::dropIfExists('task_histories');
@@ -716,7 +856,6 @@ return new class extends Migration
         Schema::dropIfExists('tasks');
         Schema::dropIfExists('projects');
 
-        // Удаляем старые таблицы задач
         Schema::dropIfExists('todo_participants');
         Schema::dropIfExists('todo_subtasks');
         Schema::dropIfExists('todo_comments');
@@ -731,19 +870,16 @@ return new class extends Migration
         Schema::dropIfExists('sessions');
         Schema::dropIfExists('password_reset_tokens');
 
-        // Удаляем поле из users
         if (Schema::hasColumn('users', 'scoring_department')) {
             Schema::table('users', function (Blueprint $table) {
                 $table->dropColumn('scoring_department');
             });
         }
 
-        // Удаляем основные таблицы
         Schema::dropIfExists('positions');
         Schema::dropIfExists('departments');
         Schema::dropIfExists('users');
 
-        // Включаем проверку внешних ключей обратно
         DB::statement('SET FOREIGN_KEY_CHECKS=1');
     }
 };

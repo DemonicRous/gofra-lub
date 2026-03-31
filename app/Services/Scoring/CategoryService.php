@@ -13,7 +13,7 @@ class CategoryService
     /**
      * Получить все категории с иерархией
      */
-    public function getCategoriesTree(string $type = null): array
+    public function getCategoriesTree(?string $type = null): array  // Добавлен ? перед string
     {
         $cacheKey = 'scoring_categories_tree_' . ($type ?? 'all');
 

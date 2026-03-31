@@ -6,8 +6,8 @@ namespace App\Http\Controllers\Scoring;
 use App\Http\Controllers\Controller;
 use App\Services\Scoring\SheetService;
 use App\Models\ScoringSheet;
-use App\Models\ScoringCategory;  // Правильный импорт
-use App\Models\Manager;           // Правильный импорт
+use App\Models\ScoringCategory;
+use App\Models\Manager;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Carbon\Carbon;
@@ -48,19 +48,33 @@ class SheetController extends Controller
             abort(403, 'У вас нет доступа к этой ведомости');
         }
 
+        // Правильная загрузка отношений:
+        // Загружаем заявки, их варианты, и записи вариантов
         $sheet->load([
-            'entries.category.parent',
-            'entries.variants',
             'user',
+            'requests' => function($query) {
+                $query->orderBy('created_at', 'desc');
+            },
+            'requests.variants' => function($query) {
+                $query->orderBy('sort_order');
+            },
+            'requests.variants.entries' => function($query) {
+                $query->orderBy('id');
+            },
+            'requests.variants.entries.category',
+            'requests.variants.entries.category.parent',
         ]);
 
         // Добавляем количество записей для отображения
-        $sheet->entries_count = $sheet->entries->count();
+        $sheet->entries_count = $sheet->requests->sum(function($request) {
+            return $request->variants->sum(function($variant) {
+                return $variant->entries->count();
+            });
+        });
 
-        // Получаем тип подотдела пользователя
+        // Получаем категории для формы добавления
         $departmentType = $sheet->user->scoring_department ?? 'constructor';
 
-        // Получаем категории для формы добавления записи
         $categories = ScoringCategory::with(['children' => function($query) {
             $query->where('is_active', true)->orderBy('sort_order');
         }])

@@ -5,21 +5,32 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ScoringVariant extends Model
 {
+    protected $table = 'scoring_variants';
+
     protected $fillable = [
-        'entry_id', 'name', 'quantity', 'points', 'sort_order'
+        'request_id', 'name', 'sort_order'
     ];
 
     protected $casts = [
-        'quantity' => 'integer',
-        'points' => 'decimal:2',
         'sort_order' => 'integer',
     ];
 
-    public function entry(): BelongsTo
+    public function request(): BelongsTo
     {
-        return $this->belongsTo(ScoringEntry::class);
+        return $this->belongsTo(ScoringRequest::class, 'request_id');
+    }
+
+    public function entries(): HasMany
+    {
+        return $this->hasMany(ScoringEntry::class, 'variant_id');
+    }
+
+    public function getTotalPointsAttribute(): float
+    {
+        return $this->entries()->sum('points');
     }
 }

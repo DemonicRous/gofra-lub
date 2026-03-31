@@ -9,6 +9,12 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ScoringSheet extends Model
 {
+    protected $table = 'scoring_sheets';
+
+    const STATUS_DRAFT = 'draft';
+    const STATUS_CONFIRMED = 'confirmed';
+    const STATUS_APPROVED = 'approved';
+
     protected $fillable = [
         'user_id', 'period_date', 'status', 'total_points',
         'confirmed_at', 'approved_by', 'notes'
@@ -20,15 +26,9 @@ class ScoringSheet extends Model
         'total_points' => 'decimal:2',
     ];
 
-    // Константы статусов
-    const STATUS_DRAFT = 'draft';
-    const STATUS_CONFIRMED = 'confirmed';
-    const STATUS_APPROVED = 'approved';
-
-    // Связи
     public function user(): BelongsTo
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(User::class, 'user_id');
     }
 
     public function approver(): BelongsTo
@@ -36,28 +36,11 @@ class ScoringSheet extends Model
         return $this->belongsTo(User::class, 'approved_by');
     }
 
-    public function entries(): HasMany
+    public function requests(): HasMany
     {
-        return $this->hasMany(ScoringEntry::class, 'sheet_id');
+        return $this->hasMany(ScoringRequest::class, 'sheet_id')->orderBy('created_at', 'desc');
     }
 
-    // Скоупы
-    public function scopeForUser($query, $userId)
-    {
-        return $query->where('user_id', $userId);
-    }
-
-    public function scopeByStatus($query, $status)
-    {
-        return $query->where('status', $status);
-    }
-
-    public function scopeForPeriod($query, $year, $month)
-    {
-        return $query->whereYear('period_date', $year)->whereMonth('period_date', $month);
-    }
-
-    // Помощники
     public function isDraft(): bool
     {
         return $this->status === self::STATUS_DRAFT;
@@ -89,11 +72,16 @@ class ScoringSheet extends Model
 
     public function recalculateTotal(): void
     {
-        $this->total_points = $this->entries()->sum('points');
-        $this->save();
+        $total = $this->requests()->with('variants.entries')->get()->sum(function ($request) {
+            return $request->variants->sum(function ($variant) {
+                return $variant->entries->sum('points');
+            });
+        });
+
+        $this->total_points = $total;
+        $this->saveQuietly();
     }
 
-    // Получение названия месяца
     public function getMonthNameAttribute(): string
     {
         return $this->period_date->translatedFormat('F Y');

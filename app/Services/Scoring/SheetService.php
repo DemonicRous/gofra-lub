@@ -5,10 +5,13 @@ namespace App\Services\Scoring;
 
 use App\Models\User;
 use App\Models\ScoringSheet;
+use App\Models\ScoringRequest;
+use App\Models\ScoringVariant;
 use App\Models\ScoringEntry;
 use App\Models\ScoringCategory;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class SheetService
 {
@@ -36,7 +39,6 @@ class SheetService
     {
         $nextMonth = Carbon::now()->addMonth()->startOfMonth();
 
-        // Получаем всех активных сотрудников Отдела развития
         $users = User::whereNotNull('scoring_department')
             ->whereNotNull('approved_at')
             ->get();
@@ -105,116 +107,145 @@ class SheetService
     }
 
     /**
-     * Добавить запись в ведомость с учетом базовых баллов категорий
+     * Создание новой заявки с вариантами
      */
-    public function addEntry(ScoringSheet $sheet, array $data): ScoringEntry
+    public function createRequest(ScoringSheet $sheet, array $data): ScoringRequest
     {
         if (!$sheet->isDraft()) {
             throw new \Exception('Нельзя добавлять записи в подтвержденную ведомость');
         }
 
         return DB::transaction(function () use ($sheet, $data) {
-            // Получаем все выбранные подкатегории
-            $categories = ScoringCategory::with('parent')
-                ->whereIn('id', $data['category_ids'])
-                ->get();
+            // Создаем заявку
+            $request = $sheet->requests()->create([
+                'request_number' => $data['request_number'] ?? null,
+                'counterparty' => $data['counterparty'] ?? null,
+                'manager_name' => $data['manager_name'] ?? null,
+            ]);
 
-            $totalPoints = 0;
-            $createdEntry = null;
-            $groupedByParent = [];
-
-            // Группируем по родительским категориям
-            foreach ($categories as $category) {
-                $parentId = $category->parent_id;
-                if (!isset($groupedByParent[$parentId])) {
-                    $groupedByParent[$parentId] = [
-                        'parent' => $category->parent,
-                        'children' => []
-                    ];
-                }
-                $groupedByParent[$parentId]['children'][] = $category;
-            }
-
-            // Для каждой родительской категории создаем запись
-            foreach ($groupedByParent as $parentId => $group) {
-                $parent = $group['parent'];
-                $children = $group['children'];
-
-                // Рассчитываем баллы: базовые баллы родителя + сумма дополнительных баллов подкатегорий
-                $points = $parent->base_points * $data['quantity'];
-                foreach ($children as $child) {
-                    $points += $child->points * $data['quantity'];
-                }
-
-                $totalPoints += $points;
-
-                // Создаем запись для родительской категории
-                $entry = $sheet->entries()->create([
-                    'category_id' => $parent->id,
-                    'request_number' => $data['request_number'] ?? null,
-                    'counterparty' => $data['counterparty'] ?? null,
-                    'manager_name' => $data['manager_name'] ?? null,
-                    'quantity' => $data['quantity'] ?? 1,
-                    'notes' => $data['notes'] ?? null,
-                    'points' => $points,
-                    'metadata' => [
-                        'selected_children' => $children->pluck('id')->toArray(),
-                        'selected_children_names' => $children->pluck('name')->toArray(),
-                        'base_points' => $parent->base_points,
-                        'additional_points' => $children->sum('points') * $data['quantity'],
-                    ]
+            // Создаем варианты
+            foreach ($data['variants'] as $index => $variantData) {
+                $variant = $request->variants()->create([
+                    'name' => $variantData['name'] ?? "Вариант " . ($index + 1),
+                    'sort_order' => $index,
                 ]);
 
-                $createdEntry = $entry;
+                // Создаем записи для каждого выбранного пункта в варианте
+                foreach ($variantData['category_ids'] as $categoryId) {
+                    $category = ScoringCategory::with('parent')->findOrFail($categoryId);
+                    $parent = $category->parent;
 
-                // Добавляем варианты, если есть
-                if (!empty($data['variants'])) {
-                    foreach ($data['variants'] as $index => $variant) {
-                        if (!empty($variant['name'])) {
-                            $entry->variants()->create([
-                                'name' => $variant['name'],
-                                'quantity' => $variant['quantity'] ?? 1,
-                                'points' => $variant['points'] ?? 0,
-                                'sort_order' => $index,
-                            ]);
-                        }
-                    }
+                    // Рассчитываем баллы
+                    $basePoints = $parent ? $parent->base_points : 0;
+                    $additionalPoints = $category->points;
+                    $points = $basePoints + $additionalPoints;
+
+                    $entry = $variant->entries()->create([
+                        'sheet_id' => $sheet->id,
+                        'request_id' => $request->id,
+                        'category_id' => $category->id,
+                        'quantity' => 1,
+                        'points' => $points,
+                        'metadata' => [
+                            'parent_name' => $parent ? $parent->name : null,
+                            'parent_id' => $parent ? $parent->id : null,
+                            'category_name' => $category->name,
+                            'base_points' => $basePoints,
+                            'additional_points' => $additionalPoints,
+                        ]
+                    ]);
                 }
             }
 
-            // Обновляем общую сумму в ведомости
             $sheet->recalculateTotal();
 
-            return $createdEntry;
+            return $request;
         });
     }
 
     /**
-     * Обновить запись
+     * Добавить вариант к существующей заявке
      */
-    public function updateEntry(ScoringEntry $entry, array $data): ScoringEntry
+    public function addVariantToRequest(ScoringRequest $request, array $data): ScoringVariant
     {
-        $sheet = $entry->sheet;
+        $sheet = $request->sheet;
 
         if (!$sheet->isDraft()) {
-            throw new \Exception('Нельзя редактировать записи в подтвержденной ведомости');
+            throw new \Exception('Нельзя добавлять варианты в подтвержденную ведомость');
         }
 
-        return DB::transaction(function () use ($entry, $data, $sheet) {
-            $entry->update([
-                'request_number' => $data['request_number'] ?? $entry->request_number,
-                'counterparty' => $data['counterparty'] ?? $entry->counterparty,
-                'manager_name' => $data['manager_name'] ?? $entry->manager_name,
-                'quantity' => $data['quantity'] ?? $entry->quantity,
-                'notes' => $data['notes'] ?? $entry->notes,
+        return DB::transaction(function () use ($request, $data, $sheet) {
+            $maxOrder = $request->variants()->max('sort_order') ?? -1;
+
+            $variant = $request->variants()->create([
+                'name' => $data['name'] ?? "Вариант " . ($maxOrder + 2),
+                'sort_order' => $maxOrder + 1,
             ]);
 
-            // Обновляем баллы
-            $entry->calculatePoints();
+            foreach ($data['category_ids'] as $categoryId) {
+                $category = ScoringCategory::with('parent')->findOrFail($categoryId);
+                $parent = $category->parent;
+
+                $basePoints = $parent ? $parent->base_points : 0;
+                $additionalPoints = $category->points;
+                $points = $basePoints + $additionalPoints;
+
+                $variant->entries()->create([
+                    'sheet_id' => $sheet->id,
+                    'request_id' => $request->id,
+                    'category_id' => $category->id,
+                    'quantity' => 1,
+                    'points' => $points,
+                    'metadata' => [
+                        'parent_name' => $parent ? $parent->name : null,
+                        'parent_id' => $parent ? $parent->id : null,
+                        'category_name' => $category->name,
+                        'base_points' => $basePoints,
+                        'additional_points' => $additionalPoints,
+                    ]
+                ]);
+            }
+
             $sheet->recalculateTotal();
 
-            return $entry;
+            return $variant;
         });
+    }
+
+    /**
+     * Получить заявки с вариантами
+     */
+    public function getRequestsWithVariants(ScoringSheet $sheet): array
+    {
+        return $sheet->requests()
+            ->with(['variants.entries.category', 'variants.entries.category.parent'])
+            ->get()
+            ->map(function ($request) {
+                return [
+                    'id' => $request->id,
+                    'request_number' => $request->request_number,
+                    'counterparty' => $request->counterparty,
+                    'manager_name' => $request->manager_name,
+                    'total_points' => $request->total_points,
+                    'variants' => $request->variants->map(function ($variant) {
+                        return [
+                            'id' => $variant->id,
+                            'name' => $variant->name,
+                            'total_points' => $variant->total_points,
+                            'entries' => $variant->entries->map(function ($entry) {
+                                return [
+                                    'id' => $entry->id,
+                                    'category_name' => $entry->category->name,
+                                    'parent_name' => $entry->category->parent->name ?? null,
+                                    'points' => $entry->points,
+                                    'metadata' => $entry->metadata,
+                                ];
+                            }),
+                        ];
+                    }),
+                ];
+            })
+            ->toArray();
     }
 
     /**
