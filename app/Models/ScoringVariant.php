@@ -1,5 +1,4 @@
 <?php
-// app/Models/ScoringVariant.php
 
 namespace App\Models;
 
@@ -12,12 +11,16 @@ class ScoringVariant extends Model
     protected $table = 'scoring_variants';
 
     protected $fillable = [
-        'request_id', 'name', 'sort_order'
+        'request_id',
+        'name',
+        'sort_order'
     ];
 
     protected $casts = [
         'sort_order' => 'integer',
     ];
+
+    protected $appends = ['total_points'];
 
     public function request(): BelongsTo
     {
@@ -31,6 +34,6 @@ class ScoringVariant extends Model
 
     public function getTotalPointsAttribute(): float
     {
-        return $this->entries()->sum('points');
+        return (float) $this->entries->sum('points');
     }
 }

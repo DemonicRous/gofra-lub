@@ -48,8 +48,7 @@ class SheetController extends Controller
             abort(403, 'У вас нет доступа к этой ведомости');
         }
 
-        // Правильная загрузка отношений:
-        // Загружаем заявки, их варианты, и записи вариантов
+        // Загружаем отношения
         $sheet->load([
             'user',
             'requests' => function($query) {
@@ -64,6 +63,9 @@ class SheetController extends Controller
             'requests.variants.entries.category',
             'requests.variants.entries.category.parent',
         ]);
+
+        // Вычисляем total_points для каждой заявки (через аксессор)
+        // Аксессор уже добавлен в модель ScoringRequest, поэтому просто обращаемся к свойству
 
         // Добавляем количество записей для отображения
         $sheet->entries_count = $sheet->requests->sum(function($request) {
@@ -137,16 +139,38 @@ class SheetController extends Controller
      */
     private function canViewSheet(ScoringSheet $sheet, $user): bool
     {
+        if (!$user) {
+            return false;
+        }
+
+        // Владелец ведомости
         if ($sheet->user_id === $user->id) {
             return true;
         }
 
-        if ($user->hasRole('manager') || $user->hasRole('admin')) {
-            return $sheet->user->scoring_department === $user->scoring_department;
-        }
-
+        // Администратор
         if ($user->hasRole('admin')) {
             return true;
+        }
+
+        // Менеджер (проверяем по подотделу)
+        if ($user->hasRole('manager')) {
+            // Проверяем, что у менеджера заполнен scoring_department
+            if (empty($user->scoring_department)) {
+                return false;
+            }
+
+            // Загружаем пользователя ведомости, если ещё не загружен
+            if (!$sheet->relationLoaded('user')) {
+                $sheet->load('user');
+            }
+
+            // Проверяем, что у владельца ведомости заполнен scoring_department
+            if (empty($sheet->user->scoring_department)) {
+                return false;
+            }
+
+            return $sheet->user->scoring_department === $user->scoring_department;
         }
 
         return false;

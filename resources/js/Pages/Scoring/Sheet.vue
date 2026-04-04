@@ -16,12 +16,16 @@
                     <h1 class="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">
                         Ведомость за {{ formatMonth(sheet.period_date) }}
                     </h1>
+
+                    <!-- ФИО пользователя -->
                     <div class="flex items-center gap-2 mt-1">
                         <div class="flex items-center gap-2 text-gray-600 dark:text-gray-400">
                             <div class="w-6 h-6 rounded-full bg-gradient-to-r from-blue-500 to-blue-600 flex items-center justify-center text-white text-xs font-medium">
-                                {{ sheet.user?.first_name?.charAt(0) || 'U' }}
+                                {{ getUserInitial(sheet.user) }}
                             </div>
-                            <span>{{ sheet.user?.full_name || sheet.user?.short_name || sheet.user?.name || '—' }}</span>
+                            <span class="font-medium text-gray-900 dark:text-white">
+                                {{ getUserFullName(sheet.user) }}
+                            </span>
                         </div>
                         <span class="text-gray-400 dark:text-gray-600">•</span>
                         <span class="text-gray-500 dark:text-gray-400">
@@ -31,16 +35,28 @@
                 </div>
 
                 <div class="flex gap-3">
-                    <!-- Кнопка экспорта -->
-                    <button
-                        @click="exportSheet"
+                    <!-- Кнопка экспорта Excel -->
+                    <a
+                        :href="route('scoring.export.sheet', sheet.id)"
                         class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-200 flex items-center gap-2 text-gray-700 dark:text-gray-300"
                     >
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                         </svg>
-                        Экспорт
-                    </button>
+                        Excel
+                    </a>
+
+                    <!-- Кнопка экспорта PDF -->
+                    <a
+                        :href="route('scoring.export.sheet-pdf', sheet.id)"
+                        target="_blank"
+                        class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-200 flex items-center gap-2 text-gray-700 dark:text-gray-300"
+                    >
+                        <svg class="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                        </svg>
+                        PDF
+                    </a>
 
                     <!-- Кнопка подтверждения -->
                     <button
@@ -283,6 +299,7 @@
             :managers="managers"
             @close="closeEditModal"
             @saved="onEntrySaved"
+            @updated="updateRequestInList"
         />
 
         <EditVariantModal
@@ -294,6 +311,7 @@
             :categories="categories"
             @close="closeEditVariantModal"
             @saved="onEntrySaved"
+            @updated="updateVariantInList"
         />
     </AppLayout>
 </template>
@@ -302,9 +320,9 @@
 import { ref } from 'vue'
 import { Head, Link, router } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
-import EditVariantModal from "@/Components/Scoring/EditVariantModal.vue";
-import EditRequestModal from "@/Components/Scoring/EditRequestModal.vue";
-import EntryFormModal from "@/Components/Scoring/EntryFormModal.vue";
+import EditVariantModal from "@/Components/Scoring/EditVariantModal.vue"
+import EditRequestModal from "@/Components/Scoring/EditRequestModal.vue"
+import EntryFormModal from "@/Components/Scoring/EntryFormModal.vue"
 
 const props = defineProps({
     sheet: {
@@ -333,6 +351,31 @@ const editingRequest = ref(null)
 const editingVariant = ref(null)
 const currentRequest = ref(null)
 
+// Вспомогательные функции для пользователя
+const getUserInitial = (user) => {
+    if (!user) return 'U'
+    if (user.first_name) return user.first_name.charAt(0).toUpperCase()
+    if (user.short_name) return user.short_name.charAt(0).toUpperCase()
+    if (user.full_name) return user.full_name.charAt(0).toUpperCase()
+    return 'U'
+}
+
+const getUserFullName = (user) => {
+    if (!user) return 'Пользователь'
+    if (user.full_name) return user.full_name
+    if (user.short_name) return user.short_name
+    if (user.last_name && user.first_name) return `${user.last_name} ${user.first_name}`
+    return 'Пользователь'
+}
+
+const getDepartmentName = (department) => {
+    const map = {
+        constructor: 'Отдел конструкторов',
+        designer: 'Отдел дизайнеров'
+    }
+    return map[department] || department || 'Подотдел не указан'
+}
+
 const formatMonth = (date) => {
     if (!date) return ''
     return new Date(date).toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' })
@@ -346,14 +389,6 @@ const formatDateTime = (date) => {
 const formatDate = (date) => {
     if (!date) return ''
     return new Date(date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' })
-}
-
-const getDepartmentName = (department) => {
-    const map = {
-        constructor: 'Отдел конструкторов',
-        designer: 'Отдел дизайнеров'
-    }
-    return map[department] || department
 }
 
 const getStatusName = (status) => {
@@ -422,6 +457,31 @@ const onEntrySaved = () => {
     closeEditModal()
     closeEditVariantModal()
     router.reload()
+}
+
+// Обновление заявки в списке без перезагрузки страницы
+const updateRequestInList = (updatedRequest) => {
+    const index = props.sheet.requests.findIndex(r => r.id === updatedRequest.id)
+    if (index !== -1) {
+        props.sheet.requests[index] = updatedRequest
+    }
+    // Обновляем общую сумму баллов
+    props.sheet.total_points = props.sheet.requests.reduce((sum, req) => sum + (req.total_points || 0), 0)
+}
+
+// Обновление варианта в списке
+const updateVariantInList = (updatedVariant) => {
+    for (const request of props.sheet.requests) {
+        const index = request.variants?.findIndex(v => v.id === updatedVariant.id)
+        if (index !== -1 && index !== undefined) {
+            request.variants[index] = updatedVariant
+            // Обновляем total_points заявки
+            request.total_points = request.variants.reduce((sum, v) => sum + (v.total_points || 0), 0)
+            break
+        }
+    }
+    // Обновляем общую сумму баллов
+    props.sheet.total_points = props.sheet.requests.reduce((sum, req) => sum + (req.total_points || 0), 0)
 }
 
 const confirmSheet = () => {

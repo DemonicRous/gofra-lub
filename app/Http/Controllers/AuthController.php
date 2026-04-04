@@ -7,6 +7,7 @@ use App\Models\Department;
 use App\Models\Position;
 use App\Notifications\VerifyEmail;
 use App\Notifications\WelcomeUser;
+use App\Rules\AllowedEmailDomain;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -98,21 +99,7 @@ class AuthController extends Controller
                 'email',
                 'max:255',
                 'unique:users',
-                function ($attribute, $value, $fail) {
-                    $allowedDomains = ['@sybox.ru', '@uralkarton.ru', '@yandex.ru', '@gmail.com'];
-                    $isValid = false;
-
-                    foreach ($allowedDomains as $domain) {
-                        if (str_ends_with($value, $domain)) {
-                            $isValid = true;
-                            break;
-                        }
-                    }
-
-                    if (!$isValid) {
-                        $fail('Разрешены только email адреса с доменами: @sybox.ru, @uralkarton.ru, @yandex.ru');
-                    }
-                },
+                new AllowedEmailDomain,
             ],
             'password' => 'required|string|min:8|confirmed',
         ]);

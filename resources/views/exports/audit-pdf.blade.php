@@ -333,6 +333,12 @@
     <div class="section">
         <div class="section-title">Фотоматериалы ({{ $photoCount }})</div>
 
+        @if($photoCount > 30)
+            <div class="alert-box warning" style="background-color:#fee2e2; border-left:3px solid #ef4444; padding:8px; margin-bottom:15px;">
+                ⚠️ Внимание: показаны только первые 30 фотографий из {{ $photoCount }} для оптимизации PDF.
+            </div>
+        @endif
+
         @for($i = 0; $i < $photoCount; $i += 3)
             <div class="photo-row clearfix">
                 @for($j = 0; $j < 3 && $i + $j < $photoCount; $j++)

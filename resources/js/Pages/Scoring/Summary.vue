@@ -1,4 +1,3 @@
-<!-- resources/js/Pages/Scoring/Summary.vue -->
 <template>
     <AppLayout>
         <Head title="Сводка по баллам" />
@@ -27,7 +26,7 @@
                         </option>
                     </select>
 
-                    <!-- Экспорт -->
+                    <!-- Экспорт в Excel -->
                     <a
                         :href="route('scoring.export.summary', { date: selectedMonth })"
                         class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition flex items-center gap-2"
@@ -35,7 +34,7 @@
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                         </svg>
-                        Экспорт сводки
+                        Экспорт в Excel
                     </a>
                 </div>
             </div>
@@ -86,8 +85,8 @@
                             <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
                             <tr v-for="sheet in constructorSheets" :key="sheet.id" class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                                 <td class="px-6 py-4">
-                                    <div class="font-medium text-gray-900 dark:text-white">{{ sheet.user.full_name }}</div>
-                                    <div class="text-sm text-gray-500 dark:text-gray-400">{{ sheet.user.position?.name }}</div>
+                                    <div class="font-medium text-gray-900 dark:text-white">{{ sheet.user?.full_name || '—' }}</div>
+                                    <div class="text-sm text-gray-500 dark:text-gray-400">{{ sheet.user?.position?.name || '—' }}</div>
                                 </td>
                                 <td class="px-6 py-4">
                                         <span :class="getStatusBadgeClass(sheet.status)" class="px-2 py-1 text-xs rounded-full">
@@ -96,7 +95,7 @@
                                 </td>
                                 <td class="px-6 py-4">
                                         <span class="text-lg font-semibold text-blue-600 dark:text-blue-400">
-                                            {{ sheet.total_points }}
+                                            {{ formatPoints(sheet.total_points) }}
                                         </span>
                                 </td>
                                 <td class="px-6 py-4">
@@ -125,7 +124,7 @@
                         <div class="flex justify-between items-center">
                             <span class="font-medium text-gray-700 dark:text-gray-300">Итого по отделу:</span>
                             <span class="text-xl font-bold text-blue-600 dark:text-blue-400">
-                                {{ constructorTotalPoints }}
+                                {{ formatPoints(constructorTotalPoints) }}
                             </span>
                         </div>
                     </div>
@@ -155,8 +154,8 @@
                             <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
                             <tr v-for="sheet in designerSheets" :key="sheet.id" class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                                 <td class="px-6 py-4">
-                                    <div class="font-medium text-gray-900 dark:text-white">{{ sheet.user.full_name }}</div>
-                                    <div class="text-sm text-gray-500 dark:text-gray-400">{{ sheet.user.position?.name }}</div>
+                                    <div class="font-medium text-gray-900 dark:text-white">{{ sheet.user?.full_name || '—' }}</div>
+                                    <div class="text-sm text-gray-500 dark:text-gray-400">{{ sheet.user?.position?.name || '—' }}</div>
                                 </td>
                                 <td class="px-6 py-4">
                                         <span :class="getStatusBadgeClass(sheet.status)" class="px-2 py-1 text-xs rounded-full">
@@ -165,7 +164,7 @@
                                 </td>
                                 <td class="px-6 py-4">
                                         <span class="text-lg font-semibold text-blue-600 dark:text-blue-400">
-                                            {{ sheet.total_points }}
+                                            {{ formatPoints(sheet.total_points) }}
                                         </span>
                                 </td>
                                 <td class="px-6 py-4">
@@ -194,31 +193,8 @@
                         <div class="flex justify-between items-center">
                             <span class="font-medium text-gray-700 dark:text-gray-300">Итого по отделу:</span>
                             <span class="text-xl font-bold text-blue-600 dark:text-blue-400">
-                                {{ designerTotalPoints }}
+                                {{ formatPoints(designerTotalPoints) }}
                             </span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Детализация по категориям (опционально) -->
-            <div v-if="showDetails" class="mt-8 bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-                <div class="px-6 py-4 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                    <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Детализация по категориям</h2>
-                    <button @click="showDetails = false" class="text-gray-500 hover:text-gray-700">
-                        Скрыть
-                    </button>
-                </div>
-                <div class="p-6">
-                    <div class="space-y-4">
-                        <div v-for="category in categoryStats" :key="category.name" class="border-b border-gray-200 dark:border-gray-700 pb-3">
-                            <div class="flex justify-between items-center">
-                                <span class="font-medium text-gray-900 dark:text-white">{{ category.name }}</span>
-                                <span class="text-blue-600 dark:text-blue-400 font-semibold">{{ category.points }} баллов</span>
-                            </div>
-                            <div class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                                {{ category.count }} записей
-                            </div>
                         </div>
                     </div>
                 </div>
@@ -233,9 +209,13 @@ import { Head, Link, router } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 
 const props = defineProps({
-    summary: {
-        type: Object,
-        required: true
+    constructorSheets: {
+        type: Array,
+        default: () => []
+    },
+    designerSheets: {
+        type: Array,
+        default: () => []
     },
     currentDate: {
         type: String,
@@ -248,22 +228,22 @@ const props = defineProps({
 })
 
 const selectedMonth = ref(props.currentDate)
-const showDetails = ref(false)
 
-const constructorSheets = computed(() => {
-    return props.summary.constructor?.sheets || []
-})
-
-const designerSheets = computed(() => {
-    return props.summary.designer?.sheets || []
-})
+// Форматирование баллов
+const formatPoints = (value) => {
+    if (value === null || value === undefined) return '0'
+    const num = Number(value)
+    if (isNaN(num)) return '0'
+    if (num % 1 === 0) return num.toString()
+    return num.toFixed(2).replace(/\.?0+$/, '')
+}
 
 const constructorTotalPoints = computed(() => {
-    return props.summary.constructor?.total_points || 0
+    return props.constructorSheets.reduce((sum, sheet) => sum + (parseFloat(sheet.total_points) || 0), 0)
 })
 
 const designerTotalPoints = computed(() => {
-    return props.summary.designer?.total_points || 0
+    return props.designerSheets.reduce((sum, sheet) => sum + (parseFloat(sheet.total_points) || 0), 0)
 })
 
 const totalPoints = computed(() => {
@@ -271,42 +251,17 @@ const totalPoints = computed(() => {
 })
 
 const totalEmployees = computed(() => {
-    return constructorSheets.value.length + designerSheets.value.length
+    return props.constructorSheets.length + props.designerSheets.length
 })
 
 const confirmedCount = computed(() => {
-    const allSheets = [...constructorSheets.value, ...designerSheets.value]
+    const allSheets = [...props.constructorSheets, ...props.designerSheets]
     return allSheets.filter(s => s.status === 'confirmed' || s.status === 'approved').length
 })
 
 const averagePoints = computed(() => {
     if (totalEmployees.value === 0) return 0
     return (totalPoints.value / totalEmployees.value).toFixed(1)
-})
-
-// Агрегация по категориям (для детализации)
-const categoryStats = computed(() => {
-    const stats = {}
-    const allSheets = [...constructorSheets.value, ...designerSheets.value]
-
-    allSheets.forEach(sheet => {
-        if (sheet.entries) {
-            sheet.entries.forEach(entry => {
-                const categoryName = entry.category?.name || 'Другое'
-                if (!stats[categoryName]) {
-                    stats[categoryName] = { points: 0, count: 0 }
-                }
-                stats[categoryName].points += entry.points
-                stats[categoryName].count += 1
-            })
-        }
-    })
-
-    return Object.entries(stats).map(([name, data]) => ({
-        name,
-        points: data.points,
-        count: data.count
-    })).sort((a, b) => b.points - a.points)
 })
 
 const changeMonth = () => {

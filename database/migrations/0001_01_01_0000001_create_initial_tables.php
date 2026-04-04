@@ -40,6 +40,8 @@ return new class extends Migration
                 $table->foreignId('parent_id')->nullable();
                 $table->boolean('is_active')->default(true);
                 $table->timestamps();
+
+                $table->index('is_active');
             });
         }
 
@@ -57,6 +59,9 @@ return new class extends Migration
                     ->default('middle');
                 $table->boolean('is_active')->default(true);
                 $table->timestamps();
+
+                $table->index('is_active');
+                $table->index('level');
             });
         }
 
@@ -76,6 +81,10 @@ return new class extends Migration
                 $table->enum('scoring_department', ['constructor', 'designer'])
                     ->nullable()
                     ->after('position_id');
+
+                $table->index('email_verified_at');
+                $table->index('approved_at');
+                $table->index('scoring_department');
             });
         }
 
@@ -137,6 +146,7 @@ return new class extends Migration
                 $table->json('settings')->nullable();
                 $table->timestamps();
                 $table->softDeletes();
+
                 $table->index('owner_id');
                 $table->index('name');
             });
@@ -168,6 +178,9 @@ return new class extends Migration
                 $table->foreignId('assigned_to')->nullable()->constrained('users')->nullOnDelete();
                 $table->foreignId('department_id')->nullable()->constrained('departments')->nullOnDelete();
                 $table->foreignId('project_id')->nullable()->constrained('projects')->nullOnDelete();
+                $table->timestamps();
+                $table->softDeletes();
+
                 $table->index(['status', 'priority', 'due_date']);
                 $table->index(['visibility', 'created_by']);
                 $table->index(['assigned_to', 'status']);
@@ -176,8 +189,6 @@ return new class extends Migration
                 $table->index('uuid');
                 $table->index('due_date');
                 $table->index('reminder_at');
-                $table->timestamps();
-                $table->softDeletes();
             });
         }
 
@@ -211,6 +222,7 @@ return new class extends Migration
                 $table->string('role')->default('participant');
                 $table->json('permissions')->nullable();
                 $table->timestamps();
+
                 $table->unique(['task_id', 'user_id']);
                 $table->index(['user_id', 'role']);
                 $table->index('task_id');
@@ -226,6 +238,7 @@ return new class extends Migration
                 $table->foreignId('task_id')->constrained('tasks')->cascadeOnDelete();
                 $table->integer('order')->default(0);
                 $table->timestamps();
+
                 $table->index(['task_id', 'is_completed']);
                 $table->index('task_id');
             });
@@ -240,6 +253,7 @@ return new class extends Migration
                 $table->foreignId('user_id')->constrained('users')->cascadeOnDelete();
                 $table->json('mentions')->nullable();
                 $table->timestamps();
+
                 $table->index(['task_id', 'created_at']);
                 $table->index('user_id');
             });
@@ -255,6 +269,7 @@ return new class extends Migration
                 $table->text('old_value')->nullable();
                 $table->text('new_value')->nullable();
                 $table->timestamps();
+
                 $table->index(['task_id', 'created_at']);
                 $table->index('user_id');
             });
@@ -267,6 +282,7 @@ return new class extends Migration
                 $table->string('name')->unique();
                 $table->string('color')->default('#3B82F6');
                 $table->timestamps();
+
                 $table->index('name');
             });
         }
@@ -278,6 +294,7 @@ return new class extends Migration
                 $table->foreignId('task_id')->constrained('tasks')->cascadeOnDelete();
                 $table->foreignId('tag_id')->constrained('tags')->cascadeOnDelete();
                 $table->timestamps();
+
                 $table->unique(['task_id', 'tag_id']);
                 $table->index('task_id');
                 $table->index('tag_id');
@@ -292,6 +309,7 @@ return new class extends Migration
                 $table->foreignId('user_id')->constrained('users')->cascadeOnDelete();
                 $table->string('role')->default('member');
                 $table->timestamps();
+
                 $table->unique(['project_id', 'user_id']);
                 $table->index(['user_id', 'role']);
             });
@@ -314,6 +332,7 @@ return new class extends Migration
                 $table->boolean('is_active')->default(true);
                 $table->integer('sort_order')->default(0);
                 $table->timestamps();
+
                 $table->index(['type', 'is_active']);
                 $table->index('parent_id');
             });
@@ -331,9 +350,11 @@ return new class extends Migration
                 $table->foreignId('approved_by')->nullable()->constrained('users')->nullOnDelete();
                 $table->text('notes')->nullable();
                 $table->timestamps();
+
                 $table->unique(['user_id', 'period_date']);
                 $table->index(['status', 'period_date']);
                 $table->index('user_id');
+                $table->index('created_at');
             });
         }
 
@@ -346,8 +367,10 @@ return new class extends Migration
                 $table->string('counterparty')->nullable();
                 $table->string('manager_name')->nullable();
                 $table->timestamps();
+
                 $table->index('sheet_id');
                 $table->index('request_number');
+                $table->index('created_at');
             });
         }
 
@@ -359,6 +382,7 @@ return new class extends Migration
                 $table->string('name')->nullable();
                 $table->integer('sort_order')->default(0);
                 $table->timestamps();
+
                 $table->index('request_id');
             });
         }
@@ -376,10 +400,14 @@ return new class extends Migration
                 $table->text('notes')->nullable();
                 $table->json('metadata')->nullable();
                 $table->timestamps();
+
+                // Добавляем недостающие индексы для ускорения запросов
                 $table->index('sheet_id');
                 $table->index('request_id');
                 $table->index('variant_id');
                 $table->index('category_id');
+                $table->index('points');
+                $table->index('created_at');
             });
         }
 
@@ -395,6 +423,7 @@ return new class extends Migration
                 $table->string('position')->nullable();
                 $table->boolean('is_active')->default(true);
                 $table->timestamps();
+
                 $table->index('full_name');
                 $table->index('last_name');
                 $table->index('is_active');
@@ -432,10 +461,12 @@ return new class extends Migration
                 $table->foreignId('related_task_id')->nullable()->constrained('tasks')->nullOnDelete();
                 $table->timestamps();
                 $table->softDeletes();
+
                 $table->index(['status', 'audit_date']);
                 $table->index(['created_by', 'status']);
                 $table->index(['assigned_to', 'status']);
                 $table->index('audit_date');
+                $table->index('deleted_at');
             });
         }
 
@@ -457,8 +488,10 @@ return new class extends Migration
                 $table->boolean('is_public')->default(true);
                 $table->integer('sort_order')->default(0);
                 $table->timestamps();
+
                 $table->index(['audit_id', 'media_type']);
                 $table->index('uploaded_by');
+                $table->index('created_at');
             });
         }
 
@@ -472,6 +505,7 @@ return new class extends Migration
                 $table->json('mentions')->nullable();
                 $table->json('attachments')->nullable();
                 $table->timestamps();
+
                 $table->index(['audit_id', 'created_at']);
                 $table->index('user_id');
             });
@@ -484,7 +518,10 @@ return new class extends Migration
                 $table->foreignId('comment_id')->constrained('audit_comments')->cascadeOnDelete();
                 $table->foreignId('media_id')->constrained('audit_media')->cascadeOnDelete();
                 $table->timestamps();
+
                 $table->unique(['comment_id', 'media_id']);
+                $table->index('comment_id');
+                $table->index('media_id');
             });
         }
 
@@ -501,6 +538,7 @@ return new class extends Migration
                 $table->boolean('is_active')->default(true);
                 $table->boolean('is_public')->default(false);
                 $table->timestamps();
+
                 $table->index('is_active');
             });
         }
@@ -578,29 +616,6 @@ return new class extends Migration
                 $table->longText('payload');
                 $table->longText('exception');
                 $table->timestamp('failed_at')->useCurrent();
-            });
-        }
-
-        // ==================== ДОПОЛНИТЕЛЬНЫЕ ИНДЕКСЫ ====================
-
-        if (Schema::hasTable('users') && !Schema::hasIndex('users', 'users_email_verified_at_index')) {
-            Schema::table('users', function (Blueprint $table) {
-                $table->index('email_verified_at');
-                $table->index('approved_at');
-                $table->index('scoring_department');
-            });
-        }
-
-        if (Schema::hasTable('departments') && !Schema::hasIndex('departments', 'departments_is_active_index')) {
-            Schema::table('departments', function (Blueprint $table) {
-                $table->index('is_active');
-            });
-        }
-
-        if (Schema::hasTable('positions') && !Schema::hasIndex('positions', 'positions_is_active_index')) {
-            Schema::table('positions', function (Blueprint $table) {
-                $table->index('is_active');
-                $table->index('level');
             });
         }
 

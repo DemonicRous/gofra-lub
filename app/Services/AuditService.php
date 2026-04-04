@@ -15,9 +15,7 @@ use Intervention\Image\ImageManager;
 
 class AuditService
 {
-    /**
-     * Создание аудита
-     */
+
     /**
      * Создание аудита
      */
@@ -89,9 +87,6 @@ class AuditService
     }
 
     /**
-     * Добавление комментария
-     */
-    /**
      * Добавление комментария с вложениями
      */
     public function addComment(Audit $audit, User $user, string $content, array $attachments = []): AuditComment
@@ -112,10 +107,14 @@ class AuditService
     }
 
     /**
-     * Экспорт аудита в PDF
+     * Экспорт аудита в PDF с оптимизацией памяти
      */
     public function exportToPdf(Audit $audit)
     {
+        // Увеличиваем лимиты для обработки больших изображений
+        ini_set('memory_limit', '512M');
+        ini_set('max_execution_time', 300);
+
         // Загружаем все необходимые связи
         $audit->load([
             'creator:id,last_name,first_name,patronymic,nickname',
@@ -136,21 +135,48 @@ class AuditService
         $audit->start_time_formatted = $audit->start_time ? date('H:i', strtotime($audit->start_time)) : null;
         $audit->end_time_formatted = $audit->end_time ? date('H:i', strtotime($audit->end_time)) : null;
 
-        // Конвертируем изображения в base64 (простое решение без дополнительных библиотек)
+        // Создаём временную директорию для изображений
+        $tempDir = storage_path('app/temp/pdf_' . uniqid());
+        if (!is_dir($tempDir)) {
+            mkdir($tempDir, 0777, true);
+        }
+
+        $imageManager = new ImageManager(new Driver());
         $photos = [];
+        $photoCount = 0;
+        $maxPhotos = 30; // Максимум 30 фото в PDF
+
         foreach ($audit->media->where('media_type', 'photo') as $media) {
-            $path = Storage::disk($media->disk)->path($media->path);
-            if (file_exists($path)) {
-                // Получаем содержимое файла
-                $imageContent = file_get_contents($path);
-                $imageData = base64_encode($imageContent);
-                $mimeType = mime_content_type($path);
+            if ($photoCount >= $maxPhotos) {
+                Log::warning("PDF аудита #{$audit->id}: превышено максимальное количество фото ({$maxPhotos}), остальные пропущены");
+                break;
+            }
+
+            $originalPath = Storage::disk($media->disk)->path($media->path);
+            if (!file_exists($originalPath)) {
+                Log::warning("Файл не найден: {$originalPath}");
+                continue;
+            }
+
+            try {
+                // Создаём уменьшенную копию (ширина 800px, качество 75%)
+                $img = $imageManager->read($originalPath);
+                $img->scale(width: 800);
+
+                $tempFilename = 'photo_' . $media->id . '.jpg';
+                $tempPath = $tempDir . '/' . $tempFilename;
+                $img->toJpeg(75)->save($tempPath);
 
                 $photos[] = [
-                    'src' => 'data:' . $mimeType . ';base64,' . $imageData,
+                    'src' => $tempPath,          // путь к временному файлу
                     'original_name' => $media->original_name,
-                    'description' => $media->description
+                    'description' => $media->description,
+                    'width' => $img->width(),
+                    'height' => $img->height(),
                 ];
+                $photoCount++;
+            } catch (\Exception $e) {
+                Log::error("Ошибка обработки фото {$media->id}: " . $e->getMessage());
             }
         }
 
@@ -160,38 +186,39 @@ class AuditService
             'generated_at' => now()->format('d.m.Y H:i:s')
         ];
 
-        // Создаем PDF с настройками
+        // Создаём PDF с настройками для работы с локальными файлами
         $pdf = Pdf::loadView('exports.audit-pdf', $data);
         $pdf->setPaper('A4', 'portrait');
 
-        // Настройки для компактного отображения
+        // Важные настройки dompdf
         $pdf->getDomPDF()->set_option('defaultFont', 'DejaVu Sans');
-        $pdf->getDomPDF()->set_option('isRemoteEnabled', true);
+        $pdf->getDomPDF()->set_option('isRemoteEnabled', false); // отключаем удалённые ресурсы
         $pdf->getDomPDF()->set_option('isHtml5ParserEnabled', true);
+        $pdf->getDomPDF()->set_option('chroot', $tempDir);      // разрешаем доступ к временной папке
 
+        // Генерируем содержимое
+        $pdfContent = $pdf->output();
+
+        // Удаляем временные файлы
+        $this->cleanupTempFiles($tempDir);
+
+        // Возвращаем сам PDF объект для дальнейшего скачивания
         return $pdf;
     }
 
-    private function getStatusName($status): string
+    /**
+     * Очистка временной директории
+     */
+    private function cleanupTempFiles(string $dir): void
     {
-        $map = [
-            'draft' => 'Черновик',
-            'in_progress' => 'В процессе',
-            'completed' => 'Завершен',
-            'cancelled' => 'Отменен'
-        ];
-        return $map[$status] ?? $status;
-    }
+        if (!is_dir($dir)) return;
 
-    private function getAuditTypeName($type): string
-    {
-        $map = [
-            'measurement' => 'Замеры',
-            'production_line' => 'Производственная линия',
-            'quality_check' => 'Проверка качества',
-            'consultation' => 'Консультация',
-            'other' => 'Другое'
-        ];
-        return $map[$type] ?? $type;
+        $files = glob($dir . '/*');
+        foreach ($files as $file) {
+            if (is_file($file)) {
+                unlink($file);
+            }
+        }
+        rmdir($dir);
     }
 }

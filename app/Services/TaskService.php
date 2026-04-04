@@ -302,8 +302,9 @@ class TaskService
     public function bulkUpdateStatus(array $taskIds, string $status, User $user): int
     {
         $count = 0;
+        $affectedUsers = collect();
 
-        DB::transaction(function () use ($taskIds, $status, $user, &$count) {
+        DB::transaction(function () use ($taskIds, $status, $user, &$count, &$affectedUsers) {
             $tasks = Task::whereIn('id', $taskIds)
                 ->visibleTo($user)
                 ->get();
@@ -317,7 +318,6 @@ class TaskService
                     $task->completed_at = now();
                     $task->save();
                 }
-
                 if ($status === Task::STATUS_IN_PROGRESS && !$task->started_at) {
                     $task->started_at = now();
                     $task->save();
@@ -325,10 +325,21 @@ class TaskService
 
                 $this->logHistory($task, $user, 'bulk_status_update', $oldStatus, $status);
                 $count++;
+
+                // Собираем пользователей, чьи кэши нужно очистить
+                $affectedUsers->push($task->created_by);
+                if ($task->assigned_to) $affectedUsers->push($task->assigned_to);
+                $affectedUsers = $affectedUsers->merge($task->participants->pluck('id'));
             }
         });
 
-        $this->clearCache($user);
+        // Очищаем кэш для всех затронутых пользователей
+        $affectedUsers->unique()->each(function ($userId) {
+            $userModel = User::find($userId);
+            if ($userModel) {
+                $this->clearCache($userModel);
+            }
+        });
 
         return $count;
     }

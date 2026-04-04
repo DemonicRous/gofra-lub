@@ -1,4 +1,4 @@
-<!-- resources/js/Pages/Scoring/components/EditRequestModal.vue -->
+<!-- resources/js/Components/Scoring/EditRequestModal.vue -->
 <template>
     <div v-if="show" class="fixed inset-0 bg-black/60 dark:bg-black/80 flex items-center justify-center z-50 p-4" @click.self="close">
         <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -143,7 +143,7 @@
                                             </svg>
                                             <span class="font-medium text-gray-900 dark:text-white">{{ parent.name }}</span>
                                             <span class="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
-                                                {{ parent.base_points }} баллов
+                                                {{ formatPoints(parent.base_points) }} баллов
                                             </span>
                                         </div>
                                         <div class="text-xs text-gray-500">
@@ -171,15 +171,15 @@
                                                     <div>
                                                         <div class="text-sm font-medium text-gray-800 dark:text-gray-200">{{ child.name }}</div>
                                                         <div class="text-xs text-gray-500">
-                                                            +{{ child.points }} баллов
+                                                            +{{ formatPoints(child.points) }} баллов
                                                             <span class="text-blue-600 ml-1">
-                                                                (итого: {{ parent.base_points + child.points }})
+                                                                (итого: {{ formatPoints(parent.base_points + child.points) }})
                                                             </span>
                                                         </div>
                                                     </div>
                                                 </div>
                                                 <div class="text-sm font-semibold text-blue-600">
-                                                    +{{ parent.base_points + child.points }}
+                                                    +{{ formatPoints(parent.base_points + child.points) }}
                                                 </div>
                                             </div>
                                         </div>
@@ -237,7 +237,7 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue'
-import { useForm } from '@inertiajs/vue3'
+import axios from 'axios'
 
 const props = defineProps({
     show: Boolean,
@@ -247,38 +247,60 @@ const props = defineProps({
     managers: Array
 })
 
-const emit = defineEmits(['close', 'saved'])
+const emit = defineEmits(['close', 'saved', 'updated'])
 
 const accordionState = ref({})
 const selectedCategories = ref({})
+const saving = ref(false)
 
-const form = useForm({
+const form = ref({
     request_number: '',
     counterparty: '',
     manager_id: '',
     variants: []
 })
 
+const formatPoints = (value) => {
+    if (value === null || value === undefined) return '0'
+    const num = Number(value)
+    if (isNaN(num)) return '0'
+    if (num % 1 === 0) return num.toString()
+    return num.toFixed(2).replace(/\.?0+$/, '')
+}
+
+// Инициализация формы данными заявки
 watch(() => props.request, (request) => {
     if (request && props.categories) {
         const manager = props.managers?.find(m => m.full_name === request.manager_name)
-        form.request_number = request.request_number || ''
-        form.counterparty = request.counterparty || ''
-        form.manager_id = manager?.id || ''
+
+        form.value.request_number = request.request_number || ''
+        form.value.counterparty = request.counterparty || ''
+        form.value.manager_id = manager?.id || ''
+
         if (request.variants) {
-            form.variants = request.variants.map(v => ({
+            form.value.variants = request.variants.map(v => ({
                 id: v.id,
                 name: v.name || '',
                 category_ids: v.entries?.map(e => e.category_id) || []
             }))
+
+            selectedCategories.value = {}
             request.variants.forEach((variant, vIndex) => {
                 variant.entries?.forEach(entry => {
-                    const parentId = entry.category?.parent_id
-                    if (parentId) {
-                        const key = `${vIndex}_${parentId}`
-                        if (!selectedCategories.value[key]) selectedCategories.value[key] = []
-                        if (!selectedCategories.value[key].includes(entry.category_id)) {
-                            selectedCategories.value[key].push(entry.category_id)
+                    const category = props.categories.find(c =>
+                        c.children?.some(child => child.id === entry.category_id)
+                    )
+                    if (category) {
+                        const key = `${vIndex}_${category.id}`
+                        if (!selectedCategories.value[key]) {
+                            selectedCategories.value[key] = category.is_multiselect ? [] : null
+                        }
+                        if (category.is_multiselect) {
+                            if (!selectedCategories.value[key].includes(entry.category_id)) {
+                                selectedCategories.value[key].push(entry.category_id)
+                            }
+                        } else {
+                            selectedCategories.value[key] = entry.category_id
                         }
                     }
                 })
@@ -304,6 +326,7 @@ const getParentById = (parentId) => {
 const isSelected = (variantIndex, parentId, childId) => {
     const key = `${variantIndex}_${parentId}`
     if (!selectedCategories.value[key]) return false
+
     const parent = getParentById(parentId)
     if (parent?.is_multiselect) {
         return selectedCategories.value[key].includes(childId)
@@ -313,9 +336,11 @@ const isSelected = (variantIndex, parentId, childId) => {
 
 const toggleCategory = (variantIndex, parent, child) => {
     const key = `${variantIndex}_${parent.id}`
+
     if (!selectedCategories.value[key]) {
         selectedCategories.value[key] = parent.is_multiselect ? [] : null
     }
+
     if (parent.is_multiselect) {
         const index = selectedCategories.value[key].indexOf(child.id)
         if (index === -1) {
@@ -323,7 +348,9 @@ const toggleCategory = (variantIndex, parent, child) => {
         } else {
             selectedCategories.value[key].splice(index, 1)
         }
-        if (selectedCategories.value[key].length === 0) delete selectedCategories.value[key]
+        if (selectedCategories.value[key].length === 0) {
+            delete selectedCategories.value[key]
+        }
     } else {
         if (selectedCategories.value[key] === child.id) {
             delete selectedCategories.value[key]
@@ -331,6 +358,7 @@ const toggleCategory = (variantIndex, parent, child) => {
             selectedCategories.value[key] = child.id
         }
     }
+
     updateVariantCategoryIds(variantIndex)
 }
 
@@ -339,12 +367,15 @@ const updateVariantCategoryIds = (variantIndex) => {
     for (const key in selectedCategories.value) {
         if (key.startsWith(`${variantIndex}_`)) {
             const value = selectedCategories.value[key]
-            if (Array.isArray(value)) ids.push(...value)
-            else if (value) ids.push(value)
+            if (Array.isArray(value)) {
+                ids.push(...value)
+            } else if (value) {
+                ids.push(value)
+            }
         }
     }
-    if (form.variants[variantIndex]) {
-        form.variants[variantIndex].category_ids = ids
+    if (form.value.variants[variantIndex]) {
+        form.value.variants[variantIndex].category_ids = ids
     }
 }
 
@@ -355,6 +386,7 @@ const getVariantTotal = (variantIndex) => {
             const parentId = parseInt(key.split('_')[1])
             const parent = getParentById(parentId)
             if (!parent) continue
+
             const selected = selectedCategories.value[key]
             if (parent.is_multiselect && Array.isArray(selected)) {
                 for (const childId of selected) {
@@ -367,25 +399,27 @@ const getVariantTotal = (variantIndex) => {
             }
         }
     }
-    return total.toFixed(2).replace(/\.?0+$/, '')
+    return formatPoints(total)
 }
 
 const totalPoints = computed(() => {
     let total = 0
-    for (let i = 0; i < form.variants.length; i++) {
+    for (let i = 0; i < form.value.variants.length; i++) {
         total += parseFloat(getVariantTotal(i) || 0)
     }
-    return total.toFixed(2).replace(/\.?0+$/, '')
+    return formatPoints(total)
 })
 
 const addVariant = () => {
-    form.variants.push({ name: '', category_ids: [] })
+    form.value.variants.push({ name: '', category_ids: [] })
 }
 
 const removeVariant = (index) => {
-    form.variants.splice(index, 1)
+    form.value.variants.splice(index, 1)
     for (const key in selectedCategories.value) {
-        if (key.startsWith(`${index}_`)) delete selectedCategories.value[key]
+        if (key.startsWith(`${index}_`)) {
+            delete selectedCategories.value[key]
+        }
     }
     const newSelected = {}
     for (const key in selectedCategories.value) {
@@ -400,24 +434,62 @@ const removeVariant = (index) => {
     selectedCategories.value = newSelected
 }
 
-const submit = () => {
-    const selectedManager = props.managers?.find(m => m.id === form.manager_id)
+const submit = async () => {
+    if (!form.value.variants.some(v => v.category_ids?.length > 0)) {
+        alert('Пожалуйста, выберите выполненные работы хотя бы для одного варианта')
+        return
+    }
+
+    const selectedManager = props.managers?.find(m => m.id === form.value.manager_id)
+
     const data = {
-        request_number: form.request_number,
-        counterparty: form.counterparty,
+        request_number: form.value.request_number,
+        counterparty: form.value.counterparty,
         manager_name: selectedManager?.full_name || '',
-        variants: form.variants.map((variant, index) => ({
+        variants: form.value.variants.map((variant, index) => ({
             id: variant.id,
             name: variant.name || `Вариант ${index + 1}`,
             category_ids: variant.category_ids,
             sort_order: index
         }))
     }
-    form.put(route('scoring.requests.update', props.request.id), {
-        data: data,
-        onSuccess: () => emit('saved')
-    })
+
+    saving.value = true
+
+    try {
+        const response = await axios.put(`/scoring/requests/${props.request.id}`, data, {
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Content-Type': 'application/json'
+            }
+        })
+
+        if (response.data.success) {
+            // Отправляем обновлённые данные в родительский компонент
+            emit('updated', response.data.request)
+            emit('saved')
+            // Закрываем модальное окно БЕЗ перезагрузки страницы
+            emit('close')
+        } else {
+            alert('Ошибка: ' + (response.data.error || 'Неизвестная ошибка'))
+        }
+    } catch (error) {
+        console.error('Ошибка:', error)
+        const errorMsg = error.response?.data?.error || error.message || 'Неизвестная ошибка'
+        alert('Ошибка при сохранении заявки: ' + errorMsg)
+    } finally {
+        saving.value = false
+    }
 }
 
 const close = () => emit('close')
 </script>
+
+<style scoped>
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+.animate-spin { animation: spin 1s linear infinite; }
+.rotate-90 { transform: rotate(90deg); }
+</style>

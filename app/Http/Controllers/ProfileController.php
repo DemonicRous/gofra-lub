@@ -42,22 +42,8 @@ class ProfileController extends Controller
                 'string',
                 'email',
                 'max:255',
-                Rule::unique('users')->ignore($user->id),
-                function ($attribute, $value, $fail) {
-                    $allowedDomains = ['@sybox.ru', '@uralkarton.ru', '@yandex.ru'];
-                    $isValid = false;
-
-                    foreach ($allowedDomains as $domain) {
-                        if (str_ends_with($value, $domain)) {
-                            $isValid = true;
-                            break;
-                        }
-                    }
-
-                    if (!$isValid) {
-                        $fail('Разрешены только email адреса с доменами: @sybox.ru, @uralkarton.ru, @yandex.ru');
-                    }
-                },
+                'unique:users' . ($userId ? ',' . $userId : ''),
+                new AllowedEmailDomain,
             ],
         ]);
 

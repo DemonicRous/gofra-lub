@@ -1,63 +1,105 @@
 <?php
-// app/Http/Controllers/Scoring/ReportController.php
 
 namespace App\Http\Controllers\Scoring;
 
 use App\Http\Controllers\Controller;
-use App\Services\Scoring\SheetService;
+use App\Exports\ScoringSheetExport;
+use App\Exports\ScoringSheetPdfExport;
+use App\Exports\ScoringSummaryExport;
 use App\Models\ScoringSheet;
 use Illuminate\Http\Request;
-use Inertia\Inertia;
 use Maatwebsite\Excel\Facades\Excel;
 use Carbon\Carbon;
 
 class ReportController extends Controller
 {
-    protected $sheetService;
-
-    public function __construct(SheetService $sheetService)
-    {
-        $this->sheetService = $sheetService;
-    }
-
     /**
-     * Сводка по подотделам
+     * Экспорт ведомости в Excel
      */
-    public function summary(Request $request)
+    public function exportSheet(ScoringSheet $sheet, Request $request)
     {
-        $date = $request->get('date')
-            ? Carbon::parse($request->get('date'))
-            : Carbon::now();
-
-        $summary = $this->sheetService->getSummary($date);
-
-        return Inertia::render('Scoring/Summary', [
-            'summary' => $summary,
-            'currentDate' => $date->format('Y-m'),
-            'months' => $this->getAvailableMonths(),
-        ]);
-    }
-
-    /**
-     * Экспорт личной ведомости в Excel
-     */
-    public function exportSheet($sheetId, Request $request)
-    {
-        $sheet = ScoringSheet::with(['user', 'entries.category', 'entries.variants'])
-            ->findOrFail($sheetId);
-
-        // Проверяем доступ
-        if (!$this->canViewSheet($sheet, $request->user())) {
+        // Проверка доступа
+        if ($sheet->user_id !== $request->user()->id && !$request->user()->hasRole('admin')) {
             abort(403, 'У вас нет доступа к этой ведомости');
         }
 
-        // TODO: Создать класс экспорта
-        // return Excel::download(
-        //     new SheetExport($sheet),
-        //     "vedomost_{$sheet->user->short_name}_{$sheet->period_date->format('Y_m')}.xlsx"
-        // );
+        return Excel::download(new ScoringSheetExport($sheet), 'vedomost_' . $sheet->period_date->format('Y_m') . '.xlsx');
+    }
 
-        return redirect()->back()->with('info', 'Экспорт в разработке');
+    /**
+     * Экспорт ведомости в PDF
+     */
+    public function exportSheetPdf(ScoringSheet $sheet, Request $request)
+    {
+        // Проверка доступа
+        if ($sheet->user_id !== $request->user()->id && !$request->user()->hasRole('admin')) {
+            abort(403, 'У вас нет доступа к этой ведомости');
+        }
+
+        $export = new ScoringSheetPdfExport($sheet);
+        return $export->download();
+    }
+
+    /**
+     * Сводка по отделам
+     */
+    public function summary(Request $request)
+    {
+        $date = $request->get('date') ? Carbon::parse($request->get('date')) : Carbon::now();
+
+        // Получаем ведомости для конструкторов за выбранный месяц
+        $constructorSheets = ScoringSheet::whereHas('user', function($query) {
+            $query->where('scoring_department', 'constructor');
+        })
+            ->whereYear('period_date', $date->year)
+            ->whereMonth('period_date', $date->month)
+            ->with('user')
+            ->get()
+            ->map(function($sheet) {
+                // Подсчитываем количество записей
+                $sheet->entries_count = $sheet->requests->sum(function($request) {
+                    return $request->variants->sum(function($variant) {
+                        return $variant->entries->count();
+                    });
+                });
+                return $sheet;
+            });
+
+        // Получаем ведомости для дизайнеров за выбранный месяц
+        $designerSheets = ScoringSheet::whereHas('user', function($query) {
+            $query->where('scoring_department', 'designer');
+        })
+            ->whereYear('period_date', $date->year)
+            ->whereMonth('period_date', $date->month)
+            ->with('user')
+            ->get()
+            ->map(function($sheet) {
+                // Подсчитываем количество записей
+                $sheet->entries_count = $sheet->requests->sum(function($request) {
+                    return $request->variants->sum(function($variant) {
+                        return $variant->entries->count();
+                    });
+                });
+                return $sheet;
+            });
+
+        // Формируем список месяцев для фильтра (последние 6 месяцев)
+        $months = [];
+        for ($i = 5; $i >= 0; $i--) {
+            $monthDate = Carbon::now()->subMonths($i);
+            $months[] = [
+                'value' => $monthDate->format('Y-m'),
+                'label' => $monthDate->translatedFormat('F Y'),
+            ];
+        }
+
+        // Передаём данные в компонент Summary
+        return inertia('Scoring/Summary', [
+            'constructorSheets' => $constructorSheets,
+            'designerSheets' => $designerSheets,
+            'currentDate' => $date->format('Y-m'),
+            'months' => $months,
+        ]);
     }
 
     /**
@@ -65,57 +107,40 @@ class ReportController extends Controller
      */
     public function exportSummary(Request $request)
     {
-        $date = $request->get('date')
-            ? Carbon::parse($request->get('date'))
-            : Carbon::now();
+        $date = $request->get('date') ? Carbon::parse($request->get('date')) : Carbon::now();
 
-        $summary = $this->sheetService->getSummary($date);
+        $constructorSheets = ScoringSheet::whereHas('user', function($query) {
+            $query->where('scoring_department', 'constructor');
+        })
+            ->whereYear('period_date', $date->year)
+            ->whereMonth('period_date', $date->month)
+            ->with('user')
+            ->get()
+            ->map(function($sheet) {
+                $sheet->entries_count = $sheet->requests->sum(function($request) {
+                    return $request->variants->sum(function($variant) {
+                        return $variant->entries->count();
+                    });
+                });
+                return $sheet;
+            });
 
-        // TODO: Создать класс экспорта
-        // return Excel::download(
-        //     new SummaryExport($summary, $date),
-        //     "svodka_{$date->format('Y_m')}.xlsx"
-        // );
+        $designerSheets = ScoringSheet::whereHas('user', function($query) {
+            $query->where('scoring_department', 'designer');
+        })
+            ->whereYear('period_date', $date->year)
+            ->whereMonth('period_date', $date->month)
+            ->with('user')
+            ->get()
+            ->map(function($sheet) {
+                $sheet->entries_count = $sheet->requests->sum(function($request) {
+                    return $request->variants->sum(function($variant) {
+                        return $variant->entries->count();
+                    });
+                });
+                return $sheet;
+            });
 
-        return redirect()->back()->with('info', 'Экспорт в разработке');
-    }
-
-    /**
-     * Получить список доступных месяцев
-     */
-    private function getAvailableMonths(): array
-    {
-        $months = [];
-        $start = Carbon::now()->subMonths(6)->startOfMonth();
-        $end = Carbon::now();
-
-        for ($date = $start; $date <= $end; $date->addMonth()) {
-            $months[] = [
-                'value' => $date->format('Y-m'),
-                'label' => $date->translatedFormat('F Y'),
-            ];
-        }
-
-        return $months;
-    }
-
-    /**
-     * Проверка доступа к ведомости
-     */
-    private function canViewSheet(ScoringSheet $sheet, $user): bool
-    {
-        if ($sheet->user_id === $user->id) {
-            return true;
-        }
-
-        if ($user->hasRole('manager') || $user->hasRole('admin')) {
-            return $sheet->user->scoring_department === $user->scoring_department;
-        }
-
-        if ($user->hasRole('admin')) {
-            return true;
-        }
-
-        return false;
+        return Excel::download(new ScoringSummaryExport($constructorSheets, $designerSheets, $date), 'scoring_summary_' . $date->format('Y_m') . '.xlsx');
     }
 }

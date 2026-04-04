@@ -1,5 +1,4 @@
 <?php
-// app/Http/Controllers/Scoring/RequestController.php
 
 namespace App\Http\Controllers\Scoring;
 
@@ -20,38 +19,25 @@ class RequestController extends Controller
      */
     public function store(ScoringSheet $sheet, Request $request)
     {
-        // Включаем логирование для отладки
-        Log::info('=== REQUEST CONTROLLER START ===');
-        Log::info('Sheet ID: ' . $sheet->id);
-        Log::info('Current user ID: ' . $request->user()->id);
-        Log::info('Sheet user_id: ' . $sheet->user_id);
-        Log::info('Sheet status: ' . $sheet->status);
-
         // Проверка доступа
         if ($sheet->user_id !== $request->user()->id) {
-            Log::error('Access denied: user_id mismatch');
             return response()->json(['error' => 'Вы можете добавлять записи только в свою ведомость'], 403);
         }
 
         if (!$sheet->isDraft()) {
-            Log::error('Sheet is not draft, status: ' . $sheet->status);
             return response()->json(['error' => 'Нельзя добавлять записи в подтвержденную ведомость'], 403);
         }
 
-        // Получаем данные из запроса
         $data = $request->all();
-        Log::info('Request data: ', $data);
 
-        // Проверяем наличие обязательных полей
         if (empty($data['variants'])) {
-            Log::error('No variants provided');
             return response()->json(['error' => 'Необходимо добавить хотя бы один вариант'], 400);
         }
 
         try {
             DB::beginTransaction();
 
-            // 1. Создаем заявку
+            // Создаем заявку
             $scoringRequest = ScoringRequest::create([
                 'sheet_id' => $sheet->id,
                 'request_number' => $data['request_number'] ?? null,
@@ -59,13 +45,9 @@ class RequestController extends Controller
                 'manager_name' => $data['manager_name'] ?? null,
             ]);
 
-            Log::info('Request created with ID: ' . $scoringRequest->id);
-
-            // 2. Создаем варианты
+            // Создаем варианты и записи
             foreach ($data['variants'] as $index => $variantData) {
-                // Пропускаем если нет выбранных категорий
                 if (empty($variantData['category_ids'])) {
-                    Log::warning('Variant ' . $index . ' has no category_ids, skipping');
                     continue;
                 }
 
@@ -75,26 +57,18 @@ class RequestController extends Controller
                     'sort_order' => $index,
                 ]);
 
-                Log::info('Variant created with ID: ' . $variant->id . ', name: ' . $variant->name);
-
-                // 3. Создаем записи для каждой категории
                 foreach ($variantData['category_ids'] as $categoryId) {
                     $category = ScoringCategory::with('parent')->find($categoryId);
-                    if (!$category) {
-                        Log::error('Category not found: ' . $categoryId);
-                        continue;
-                    }
+                    if (!$category) continue;
 
                     $parent = $category->parent;
                     $basePoints = $parent ? (float)$parent->base_points : 0;
                     $additionalPoints = (float)$category->points;
                     $points = $basePoints + $additionalPoints;
 
-                    Log::info('Category: ' . $category->name . ', Points: ' . $points);
-
                     ScoringEntry::create([
                         'sheet_id' => $sheet->id,
-                        'request_id' => $scoringRequest->id,  // request_id, не scoring_request_id
+                        'request_id' => $scoringRequest->id,
                         'variant_id' => $variant->id,
                         'category_id' => $category->id,
                         'quantity' => 1,
@@ -109,39 +83,209 @@ class RequestController extends Controller
                 }
             }
 
-            // 4. Обновляем общую сумму в ведомости
-            $totalPoints = $scoringRequest->entries()->sum('points');
-            $sheet->total_points = $sheet->total_points + $totalPoints;
-            $sheet->save();
-
-            Log::info('Sheet total points updated to: ' . $sheet->total_points);
+            // Пересчитываем общую сумму ведомости
+            $sheet->recalculateTotal();
 
             DB::commit();
-            Log::info('Transaction committed successfully');
 
-            // Возвращаем успешный ответ
+            // Загружаем все отношения для ответа
+            $scoringRequest->load(['variants.entries.category', 'variants.entries.category.parent']);
+
             return response()->json([
                 'success' => true,
                 'message' => 'Заявка успешно добавлена',
-                'request' => $scoringRequest->load(['variants.entries.category', 'variants.entries.category.parent'])
+                'request' => $scoringRequest
             ]);
 
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('ERROR: ' . $e->getMessage());
-            Log::error($e->getTraceAsString());
+            Log::error('Store error: ' . $e->getMessage());
+            return response()->json(['error' => 'Ошибка при сохранении заявки: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Обновление заявки
+     */
+    public function update(Request $request, $id)
+    {
+        Log::info('=== UPDATE REQUEST ===');
+        Log::info('Request ID: ' . $id);
+
+        // Находим заявку с загрузкой sheet
+        $scoringRequest = ScoringRequest::with('sheet')->find($id);
+
+        if (!$scoringRequest) {
+            Log::error('Request not found: ' . $id);
+            return response()->json(['error' => 'Заявка не найдена'], 404);
+        }
+
+        $sheet = $scoringRequest->sheet;
+
+        if (!$sheet) {
+            Log::error('Sheet not found for request: ' . $id);
+            return response()->json(['error' => 'Ведомость не найдена'], 404);
+        }
+
+        Log::info('Sheet found:', ['sheet_id' => $sheet->id, 'sheet_user_id' => $sheet->user_id]);
+
+        // Проверка прав
+        if ($sheet->user_id !== $request->user()->id) {
+            Log::error('Access denied. Sheet user_id: ' . $sheet->user_id . ', Current user_id: ' . $request->user()->id);
+            return response()->json(['error' => 'Вы можете редактировать только свои заявки'], 403);
+        }
+
+        if (!$sheet->isDraft()) {
+            Log::error('Sheet is not draft. Status: ' . $sheet->status);
+            return response()->json(['error' => 'Нельзя редактировать заявки в подтвержденной ведомости'], 403);
+        }
+
+        $validated = $request->validate([
+            'request_number' => 'nullable|string|max:100',
+            'counterparty' => 'nullable|string|max:255',
+            'manager_name' => 'nullable|string|max:255',
+            'variants' => 'required|array',
+            'variants.*.id' => 'nullable|exists:scoring_variants,id',
+            'variants.*.name' => 'nullable|string|max:255',
+            'variants.*.category_ids' => 'required|array',
+            'variants.*.category_ids.*' => 'exists:scoring_categories,id',
+        ]);
+
+        Log::info('Validation passed');
+
+        DB::beginTransaction();
+
+        try {
+            // 1. Обновляем основную информацию
+            $scoringRequest->update([
+                'request_number' => $validated['request_number'],
+                'counterparty' => $validated['counterparty'],
+                'manager_name' => $validated['manager_name'],
+            ]);
+
+            Log::info('Request basic info updated');
+
+            // 2. Получаем текущие ID вариантов
+            $existingVariantIds = $scoringRequest->variants()->pluck('id')->toArray();
+            $keepVariantIds = [];
+
+            // 3. Обрабатываем каждый вариант из запроса
+            foreach ($validated['variants'] as $index => $variantData) {
+                $variantId = $variantData['id'] ?? null;
+
+                if ($variantId && in_array($variantId, $existingVariantIds)) {
+                    // Обновляем существующий вариант
+                    $variant = ScoringVariant::find($variantId);
+                    if ($variant) {
+                        $variant->update([
+                            'name' => $variantData['name'] ?? "Вариант " . ($index + 1),
+                            'sort_order' => $index,
+                        ]);
+                        $keepVariantIds[] = $variantId;
+
+                        // Удаляем старые записи варианта
+                        $variant->entries()->delete();
+                        Log::info('Variant updated and entries deleted', ['variant_id' => $variantId]);
+                    }
+                } else {
+                    // Создаём новый вариант
+                    $variant = ScoringVariant::create([
+                        'request_id' => $scoringRequest->id,
+                        'name' => $variantData['name'] ?? "Вариант " . ($index + 1),
+                        'sort_order' => $index,
+                    ]);
+                    $keepVariantIds[] = $variant->id;
+                    Log::info('New variant created', ['variant_id' => $variant->id]);
+                }
+
+                // Создаём новые записи для варианта
+                foreach ($variantData['category_ids'] as $categoryId) {
+                    $category = ScoringCategory::with('parent')->find($categoryId);
+                    if (!$category) {
+                        Log::warning('Category not found', ['category_id' => $categoryId]);
+                        continue;
+                    }
+
+                    $parent = $category->parent;
+                    $basePoints = $parent ? (float)$parent->base_points : 0;
+                    $additionalPoints = (float)$category->points;
+                    $points = $basePoints + $additionalPoints;
+
+                    $variant->entries()->create([
+                        'sheet_id' => $sheet->id,
+                        'request_id' => $scoringRequest->id,
+                        'variant_id' => $variant->id,
+                        'category_id' => $category->id,
+                        'quantity' => 1,
+                        'points' => $points,
+                        'metadata' => [
+                            'parent_name' => $parent ? $parent->name : null,
+                            'category_name' => $category->name,
+                            'base_points' => $basePoints,
+                            'additional_points' => $additionalPoints,
+                        ]
+                    ]);
+                    Log::info('Entry created', ['category_id' => $categoryId, 'points' => $points]);
+                }
+            }
+
+            // 4. Удаляем варианты, которых нет в запросе
+            $variantsToDelete = array_diff($existingVariantIds, $keepVariantIds);
+            if (!empty($variantsToDelete)) {
+                ScoringVariant::whereIn('id', $variantsToDelete)->delete();
+                Log::info('Deleted variants', ['variants' => $variantsToDelete]);
+            }
+
+            // 5. Пересчитываем общую сумму
+            $sheet->recalculateTotal();
+
+            DB::commit();
+
+            Log::info('Update successful, new total: ' . $sheet->total_points);
+
+            // Загружаем обновлённые данные для ответа
+            $scoringRequest->load(['variants.entries.category', 'variants.entries.category.parent']);
 
             return response()->json([
                 'success' => true,
-                'message' => 'Заявка успешно добавлена',
-                'request' => $scoringRequest->load([
-                    'variants' => function($query) {
-                        $query->orderBy('sort_order');
-                    },
-                    'variants.entries.category',
-                    'variants.entries.category.parent'
-                ])
+                'message' => 'Заявка успешно обновлена',
+                'request' => $scoringRequest,
+                'sheet' => $sheet
             ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Update error: ' . $e->getMessage());
+            Log::error($e->getTraceAsString());
+            return response()->json(['error' => 'Ошибка при обновлении заявки: ' . $e->getMessage()], 500);
         }
+    }
+
+    /**
+     * Удаление заявки
+     */
+    public function destroy(ScoringRequest $scoringRequest, Request $request)
+    {
+        $scoringRequest->load('sheet');
+        $sheet = $scoringRequest->sheet;
+
+        if (!$sheet) {
+            return redirect()->back()->with('error', 'Ведомость не найдена');
+        }
+
+        if ($sheet->user_id !== $request->user()->id) {
+            return redirect()->back()->with('error', 'Вы можете удалять только свои заявки');
+        }
+
+        if (!$sheet->isDraft()) {
+            return redirect()->back()->with('error', 'Нельзя удалять заявки из подтвержденной ведомости');
+        }
+
+        DB::transaction(function () use ($scoringRequest, $sheet) {
+            $scoringRequest->delete();
+            $sheet->recalculateTotal();
+        });
+
+        return redirect()->back()->with('success', 'Заявка удалена');
     }
 }

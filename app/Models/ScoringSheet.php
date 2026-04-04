@@ -79,7 +79,7 @@ class ScoringSheet extends Model
         });
 
         $this->total_points = $total;
-        $this->saveQuietly();
+        $this->saveQuietly(); // Используем saveQuietly чтобы избежать рекурсии
     }
 
     public function getMonthNameAttribute(): string

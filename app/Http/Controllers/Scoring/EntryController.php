@@ -25,6 +25,11 @@ class EntryController extends Controller
      */
     public function create(ScoringSheet $sheet, Request $request)
     {
+        if (is_null($sheet->user->scoring_department)) {
+            return redirect()->route('scoring.sheets.show', $sheet)
+                ->with('error', 'Для вашего аккаунта не назначен подотдел (конструктор/дизайнер). Обратитесь к администратору.');
+        }
+
         // Проверяем доступ
         if (!$this->canEditSheet($sheet, $request->user())) {
             abort(403, 'У вас нет доступа к этой ведомости');

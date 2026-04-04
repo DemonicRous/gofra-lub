@@ -1,4 +1,4 @@
-<!-- resources/js/Pages/Scoring/components/EditVariantModal.vue -->
+<!-- resources/js/Components/Scoring/EditVariantModal.vue -->
 <template>
     <div v-if="show" class="fixed inset-0 bg-black/60 dark:bg-black/80 flex items-center justify-center z-50 p-4" @click.self="close">
         <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
@@ -104,19 +104,19 @@
                 <!-- Детализация баллов -->
                 <div v-if="selectedCategoriesList.length > 0" class="bg-gray-50 dark:bg-gray-700/30 rounded-xl p-4">
                     <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                         </svg>
                         Детализация баллов
                     </h4>
                     <div class="space-y-2">
-                        <div v-for="item in selectedCategoriesList" :key="item.id" class="flex justify-between text-sm">
-                            <span class="text-gray-600 dark:text-gray-400">{{ item.parent_name }} → {{ item.child_name }}</span>
-                            <span class="font-medium text-purple-600 dark:text-purple-400">{{ formatPoints(item.points) }} баллов</span>
+                        <div v-for="item in selectedCategoriesList" :key="item.id" class="flex justify-between items-center text-sm">
+                            <span class="text-gray-600 dark:text-gray-400 pr-4">{{ item.parent_name }} → {{ item.child_name }}</span>
+                            <span class="font-medium text-purple-600 dark:text-purple-400 whitespace-nowrap ml-4">{{ formatPoints(item.points) }} баллов</span>
                         </div>
-                        <div class="border-t border-gray-200 dark:border-gray-600 pt-2 mt-2 flex justify-between font-semibold">
+                        <div class="border-t border-gray-200 dark:border-gray-600 pt-2 mt-2 flex justify-between items-center font-semibold">
                             <span>Итого:</span>
-                            <span class="text-purple-600 dark:text-purple-400">{{ totalPoints }} баллов</span>
+                            <span class="text-purple-600 dark:text-purple-400 whitespace-nowrap">{{ totalPoints }} баллов</span>
                         </div>
                     </div>
                 </div>
@@ -173,7 +173,6 @@ const props = defineProps({
 const emit = defineEmits(['close', 'saved'])
 
 const accordionState = ref({})
-// Структура: { parentId: selectedChildId или [selectedChildIds] }
 const selectedByParent = ref({})
 
 const form = useForm({
@@ -181,7 +180,15 @@ const form = useForm({
     category_ids: []
 })
 
-// Функция обновления массива ID для отправки (объявляем ДО watch)
+const formatPoints = (value) => {
+    if (value === null || value === undefined) return '0'
+    const num = Number(value)
+    if (isNaN(num)) return '0'
+    if (num % 1 === 0) return num.toString()
+    return num.toFixed(2).replace(/\.?0+$/, '')
+}
+
+// Обновление массива ID для отправки
 const updateFormCategoryIds = () => {
     const ids = []
     for (const parentId in selectedByParent.value) {
@@ -199,20 +206,14 @@ const updateFormCategoryIds = () => {
 watch(() => props.variant, (variant) => {
     if (variant && props.categories.length > 0) {
         form.name = variant.name || ''
-
-        // Сбрасываем выбранные категории
         selectedByParent.value = {}
 
-        // Группируем записи по родительским категориям
         const entries = variant.entries || []
-
         entries.forEach(entry => {
-            // Находим родительскую категорию для этой записи
             for (const parent of props.categories) {
                 const child = parent.children?.find(c => c.id === entry.category_id)
                 if (child) {
                     if (parent.is_multiselect) {
-                        // Множественный выбор - массив ID
                         if (!selectedByParent.value[parent.id]) {
                             selectedByParent.value[parent.id] = []
                         }
@@ -220,7 +221,6 @@ watch(() => props.variant, (variant) => {
                             selectedByParent.value[parent.id].push(entry.category_id)
                         }
                     } else {
-                        // Одиночный выбор - один ID
                         selectedByParent.value[parent.id] = entry.category_id
                     }
                     break
@@ -228,7 +228,6 @@ watch(() => props.variant, (variant) => {
             }
         })
 
-        // Обновляем form.category_ids для отправки
         updateFormCategoryIds()
     }
 }, { immediate: true, deep: true })
@@ -251,24 +250,19 @@ const toggleCategory = (parent, child) => {
     const parentId = parent.id
 
     if (parent.is_multiselect) {
-        // Множественный выбор
         if (!selectedByParent.value[parentId]) {
             selectedByParent.value[parentId] = []
         }
-
         const index = selectedByParent.value[parentId].indexOf(child.id)
         if (index === -1) {
             selectedByParent.value[parentId].push(child.id)
         } else {
             selectedByParent.value[parentId].splice(index, 1)
         }
-
-        // Если массив пуст, удаляем ключ
         if (selectedByParent.value[parentId].length === 0) {
             delete selectedByParent.value[parentId]
         }
     } else {
-        // Одиночный выбор
         if (selectedByParent.value[parentId] === child.id) {
             delete selectedByParent.value[parentId]
         } else {
@@ -276,11 +270,10 @@ const toggleCategory = (parent, child) => {
         }
     }
 
-    // Обновляем массив ID для отправки
     updateFormCategoryIds()
 }
 
-// Получение списка выбранных категорий для детализации
+// Список выбранных категорий для детализации
 const selectedCategoriesList = computed(() => {
     const result = []
     for (const parentId in selectedByParent.value) {
@@ -288,9 +281,7 @@ const selectedCategoriesList = computed(() => {
         if (!parent) continue
 
         const selected = selectedByParent.value[parentId]
-
         if (Array.isArray(selected)) {
-            // Множественный выбор
             for (const childId of selected) {
                 const child = parent.children?.find(c => c.id === childId)
                 if (child) {
@@ -305,7 +296,6 @@ const selectedCategoriesList = computed(() => {
                 }
             }
         } else if (selected) {
-            // Одиночный выбор
             const child = parent.children?.find(c => c.id === selected)
             if (child) {
                 result.push({
@@ -321,15 +311,6 @@ const selectedCategoriesList = computed(() => {
     }
     return result
 })
-
-// Форматирование чисел
-const formatPoints = (value) => {
-    if (value === null || value === undefined) return '0'
-    const num = Number(value)
-    if (isNaN(num)) return '0'
-    if (num % 1 === 0) return num.toString()
-    return num.toFixed(2).replace(/\.?0+$/, '')
-}
 
 // Общая сумма баллов
 const totalPoints = computed(() => {
@@ -356,12 +337,22 @@ const submit = () => {
         return
     }
 
-    form.put(route('scoring.variants.update', props.variant.id), {
+    // Используем прямой URL вместо route()
+    const url = `/scoring/variants/${props.variant.id}`
+
+    form.put(url, {
         data: {
             name: form.name,
             category_ids: form.category_ids
         },
-        onSuccess: () => emit('saved')
+        preserveScroll: true,
+        onSuccess: () => {
+            emit('saved')
+        },
+        onError: (errors) => {
+            console.error('Ошибка:', errors)
+            alert('Ошибка при сохранении варианта')
+        }
     })
 }
 
