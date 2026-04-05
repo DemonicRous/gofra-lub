@@ -166,6 +166,8 @@ Route::middleware(['auth', 'approved'])->group(function () {
         // Управление отделами
         Route::resource('departments', DepartmentController::class)->except(['show']);
 
+        Route::post('/users/assign-scoring-department', [UserController::class, 'assignScoringDepartment'])->name('users.assign-scoring-department');
+
         // Управление должностями
         Route::resource('positions', PositionController::class)->except(['show']);
         Route::get('/positions/by-department/{departmentId}', [PositionController::class, 'getByDepartment'])->name('positions.by-department');

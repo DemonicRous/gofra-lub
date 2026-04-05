@@ -18,7 +18,6 @@ class ReportController extends Controller
      */
     public function exportSheet(ScoringSheet $sheet, Request $request)
     {
-        // Проверка доступа
         if ($sheet->user_id !== $request->user()->id && !$request->user()->hasRole('admin')) {
             abort(403, 'У вас нет доступа к этой ведомости');
         }
@@ -31,7 +30,6 @@ class ReportController extends Controller
      */
     public function exportSheetPdf(ScoringSheet $sheet, Request $request)
     {
-        // Проверка доступа
         if ($sheet->user_id !== $request->user()->id && !$request->user()->hasRole('admin')) {
             abort(403, 'У вас нет доступа к этой ведомости');
         }
@@ -47,43 +45,26 @@ class ReportController extends Controller
     {
         $date = $request->get('date') ? Carbon::parse($request->get('date')) : Carbon::now();
 
-        // Получаем ведомости для конструкторов за выбранный месяц
+        // Конструкторы
         $constructorSheets = ScoringSheet::whereHas('user', function($query) {
             $query->where('scoring_department', 'constructor');
         })
             ->whereYear('period_date', $date->year)
             ->whereMonth('period_date', $date->month)
-            ->with('user')
-            ->get()
-            ->map(function($sheet) {
-                // Подсчитываем количество записей
-                $sheet->entries_count = $sheet->requests->sum(function($request) {
-                    return $request->variants->sum(function($variant) {
-                        return $variant->entries->count();
-                    });
-                });
-                return $sheet;
-            });
+            ->with(['user', 'user.position'])
+            ->withCount('requests')  // <-- добавляем количество заявок
+            ->get();
 
-        // Получаем ведомости для дизайнеров за выбранный месяц
+        // Дизайнеры
         $designerSheets = ScoringSheet::whereHas('user', function($query) {
             $query->where('scoring_department', 'designer');
         })
             ->whereYear('period_date', $date->year)
             ->whereMonth('period_date', $date->month)
-            ->with('user')
-            ->get()
-            ->map(function($sheet) {
-                // Подсчитываем количество записей
-                $sheet->entries_count = $sheet->requests->sum(function($request) {
-                    return $request->variants->sum(function($variant) {
-                        return $variant->entries->count();
-                    });
-                });
-                return $sheet;
-            });
+            ->with(['user', 'user.position'])
+            ->withCount('requests')  // <-- добавляем количество заявок
+            ->get();
 
-        // Формируем список месяцев для фильтра (последние 6 месяцев)
         $months = [];
         for ($i = 5; $i >= 0; $i--) {
             $monthDate = Carbon::now()->subMonths($i);
@@ -93,7 +74,6 @@ class ReportController extends Controller
             ];
         }
 
-        // Передаём данные в компонент Summary
         return inertia('Scoring/Summary', [
             'constructorSheets' => $constructorSheets,
             'designerSheets' => $designerSheets,
@@ -115,15 +95,8 @@ class ReportController extends Controller
             ->whereYear('period_date', $date->year)
             ->whereMonth('period_date', $date->month)
             ->with('user')
-            ->get()
-            ->map(function($sheet) {
-                $sheet->entries_count = $sheet->requests->sum(function($request) {
-                    return $request->variants->sum(function($variant) {
-                        return $variant->entries->count();
-                    });
-                });
-                return $sheet;
-            });
+            ->withCount('requests')
+            ->get();
 
         $designerSheets = ScoringSheet::whereHas('user', function($query) {
             $query->where('scoring_department', 'designer');
@@ -131,15 +104,8 @@ class ReportController extends Controller
             ->whereYear('period_date', $date->year)
             ->whereMonth('period_date', $date->month)
             ->with('user')
-            ->get()
-            ->map(function($sheet) {
-                $sheet->entries_count = $sheet->requests->sum(function($request) {
-                    return $request->variants->sum(function($variant) {
-                        return $variant->entries->count();
-                    });
-                });
-                return $sheet;
-            });
+            ->withCount('requests')
+            ->get();
 
         return Excel::download(new ScoringSummaryExport($constructorSheets, $designerSheets, $date), 'scoring_summary_' . $date->format('Y_m') . '.xlsx');
     }

@@ -42,6 +42,8 @@ class User extends Authenticatable
         ];
     }
 
+    protected $appends = ['full_name', 'short_name', 'name_with_position'];
+
     // Связь с отделом
     public function department()
     {
@@ -142,5 +144,22 @@ class User extends Authenticatable
         return $this->belongsToMany(Task::class, 'task_participants')
             ->withPivot('role', 'permissions')
             ->withTimestamps();
+    }
+
+    /**
+     * Автоматическое создание ведомости при назначении подотдела
+     */
+    protected static function booted()
+    {
+        static::saved(function ($user) {
+            if ($user->wasChanged('scoring_department') && !is_null($user->scoring_department)) {
+                try {
+                    $sheetService = app(SheetService::class);
+                    $sheetService->createSheetForUser($user, now()->startOfMonth());
+                } catch (\Exception $e) {
+                    \Log::error('Не удалось создать ведомость для пользователя ' . $user->id . ': ' . $e->getMessage());
+                }
+            }
+        });
     }
 }

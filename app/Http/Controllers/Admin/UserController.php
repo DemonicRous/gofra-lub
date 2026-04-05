@@ -14,29 +14,23 @@ use Inertia\Inertia;
 class UserController extends Controller
 {
     /**
-     * Отображение списка пользователей для администрирования
+     * Отображение списка пользователей
      */
     public function index(Request $request)
     {
-        $status = $request->get('status', 'pending'); // pending, approved, all
+        $status = $request->get('status', 'pending');
 
         $query = User::query();
 
-        // Фильтрация по статусу
         switch ($status) {
             case 'pending':
-                $query->whereNull('approved_at')
-                    ->whereNotNull('email_verified_at');
+                $query->whereNull('approved_at')->whereNotNull('email_verified_at');
                 break;
             case 'approved':
                 $query->whereNotNull('approved_at');
                 break;
-            case 'all':
-                // без фильтрации
-                break;
         }
 
-        // Поиск по имени, email или никнейму
         if ($search = $request->get('search')) {
             $query->where(function($q) use ($search) {
                 $q->where('last_name', 'like', "%{$search}%")
@@ -47,11 +41,8 @@ class UserController extends Controller
             });
         }
 
-        // Сортировка
         $sortBy = $request->get('sort_by', 'created_at');
         $sortOrder = $request->get('sort_order', 'desc');
-
-        // Проверяем, что поле сортировки существует
         $allowedSortFields = ['created_at', 'last_name', 'first_name', 'email', 'nickname'];
         if (in_array($sortBy, $allowedSortFields)) {
             $query->orderBy($sortBy, $sortOrder);
@@ -59,21 +50,11 @@ class UserController extends Controller
             $query->orderBy('created_at', 'desc');
         }
 
-        // Загружаем связанные модели
         $users = $query->with(['roles', 'department', 'position'])
             ->select([
-                'id',
-                'last_name',
-                'first_name',
-                'patronymic',
-                'nickname',
-                'email',
-                'department_id',
-                'position_id',
-                'approved_at',
-                'email_verified_at',
-                'created_at',
-                'updated_at'
+                'id', 'last_name', 'first_name', 'patronymic', 'nickname', 'email',
+                'department_id', 'position_id', 'scoring_department',
+                'approved_at', 'email_verified_at', 'created_at', 'updated_at'
             ])
             ->paginate($request->get('per_page', 15))
             ->through(function ($user) {
@@ -89,6 +70,7 @@ class UserController extends Controller
                     'position_id' => $user->position_id,
                     'department_name' => $user->department?->name,
                     'department_id' => $user->department_id,
+                    'scoring_department' => $user->scoring_department,
                     'role' => $user->roles->first()?->name ?? 'user',
                     'approved_at' => $user->approved_at,
                     'email_verified_at' => $user->email_verified_at,
@@ -96,13 +78,14 @@ class UserController extends Controller
                 ];
             });
 
-        // Статистика для админ-панели
         $stats = [
             'total' => User::count(),
             'pending' => User::whereNull('approved_at')->whereNotNull('email_verified_at')->count(),
             'approved' => User::whereNotNull('approved_at')->count(),
             'verified' => User::whereNotNull('email_verified_at')->count(),
         ];
+
+        $departments = Department::where('is_active', true)->orderBy('name')->get(['id', 'name']);
 
         return Inertia::render('Admin/Users', [
             'users' => $users,
@@ -113,6 +96,7 @@ class UserController extends Controller
                 'sort_by' => $sortBy,
                 'sort_order' => $sortOrder,
             ],
+            'departments' => $departments
         ]);
     }
 
@@ -229,7 +213,6 @@ class UserController extends Controller
     {
         $user = User::with(['roles', 'department', 'position'])->findOrFail($id);
 
-        // Получаем все отделы и должности для формы редактирования
         $departments = Department::where('is_active', true)->orderBy('name')->get();
         $allPositions = Position::where('is_active', true)
             ->with('department')
@@ -251,10 +234,11 @@ class UserController extends Controller
                 'position_level' => $user->position?->level,
                 'department_name' => $user->department?->name,
                 'department_id' => $user->department_id,
+                'scoring_department' => $user->scoring_department,
                 'role' => $user->roles->first()?->name ?? 'user',
                 'roles' => $user->getRoleNames(),
                 'approved_at' => $user->approved_at,
-                'email_verified_at' => $user->email_verified_at, // Теперь это будет null для неподтвержденных
+                'email_verified_at' => $user->email_verified_at,
                 'created_at' => $user->created_at,
                 'updated_at' => $user->updated_at,
             ],
@@ -278,16 +262,68 @@ class UserController extends Controller
             'department_id' => 'nullable|exists:departments,id',
             'position_id' => 'nullable|exists:positions,id',
             'email' => 'required|email|unique:users,email,' . $id,
+            'scoring_department' => 'nullable|in:constructor,designer',
         ]);
 
         $user->update($validated);
 
-        // Если роль передана, обновляем её
         if ($request->has('role')) {
             $user->syncRoles([$request->role]);
         }
 
         return redirect()->back()->with('success', 'Данные пользователя обновлены.');
+    }
+
+    /**
+     * Массовое назначение подотдела (scoring_department) для пользователей отдела
+     */
+    public function assignScoringDepartment(Request $request)
+    {
+        $request->validate([
+            'department_id' => 'required|exists:departments,id',
+            'scoring_department' => 'required|in:constructor,designer',
+        ]);
+
+        $departmentId = $request->department_id;
+        $scoringDepartment = $request->scoring_department;
+
+        // Обновляем только одобренных пользователей, у которых ещё не назначен подотдел или он отличается
+        $updatedCount = User::where('department_id', $departmentId)
+            ->whereNotNull('approved_at')
+            ->where(function ($query) use ($scoringDepartment) {
+                $query->whereNull('scoring_department')
+                    ->orWhere('scoring_department', '!=', $scoringDepartment);
+            })
+            ->update(['scoring_department' => $scoringDepartment]);
+
+        // Создаём ведомости для обновлённых пользователей (если ещё нет за текущий месяц)
+        $users = User::where('department_id', $departmentId)
+            ->whereNotNull('approved_at')
+            ->where('scoring_department', $scoringDepartment)
+            ->get();
+
+        $sheetService = app(\App\Services\Scoring\SheetService::class);
+        $createdCount = 0;
+        $currentMonth = now()->startOfMonth();
+
+        foreach ($users as $user) {
+            // Проверяем, существует ли уже ведомость за текущий месяц
+            $exists = \App\Models\ScoringSheet::where('user_id', $user->id)
+                ->where('period_date', $currentMonth)
+                ->exists();
+
+            if (!$exists) {
+                $sheetService->createSheetForUser($user, $currentMonth);
+                $createdCount++;
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => "Обновлено пользователей: {$updatedCount}. Создано ведомостей: {$createdCount}.",
+            'updated' => $updatedCount,
+            'created' => $createdCount,
+        ]);
     }
 
     /**

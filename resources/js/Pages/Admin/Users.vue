@@ -21,25 +21,25 @@
 
                 <!-- Статистика -->
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                    <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 transition-colors duration-300">
+                    <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
                         <div class="text-sm text-blue-600 dark:text-blue-400">Всего</div>
                         <div class="text-2xl font-bold text-gray-900 dark:text-white">{{ stats.total }}</div>
                     </div>
-                    <div class="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-4 transition-colors duration-300">
+                    <div class="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-4">
                         <div class="text-sm text-yellow-600 dark:text-yellow-400">Ожидают</div>
                         <div class="text-2xl font-bold text-gray-900 dark:text-white">{{ stats.pending }}</div>
                     </div>
-                    <div class="bg-green-50 dark:bg-green-900/20 rounded-lg p-4 transition-colors duration-300">
+                    <div class="bg-green-50 dark:bg-green-900/20 rounded-lg p-4">
                         <div class="text-sm text-green-600 dark:text-green-400">Одобрены</div>
                         <div class="text-2xl font-bold text-gray-900 dark:text-white">{{ stats.approved }}</div>
                     </div>
-                    <div class="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4 transition-colors duration-300">
+                    <div class="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4">
                         <div class="text-sm text-purple-600 dark:text-purple-400">Подтверждены</div>
                         <div class="text-2xl font-bold text-gray-900 dark:text-white">{{ stats.verified }}</div>
                     </div>
                 </div>
 
-                <!-- Фильтры -->
+                <!-- Фильтры и действия -->
                 <div class="mb-6 flex flex-wrap gap-4">
                     <select
                         v-model="filters.status"
@@ -74,6 +74,13 @@
                     >
                         Удалить выбранных ({{ selectedUsers.length }})
                     </button>
+
+                    <button
+                        @click="openAssignScoringModal"
+                        class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md transition"
+                    >
+                        Назначить подотделы
+                    </button>
                 </div>
 
                 <!-- Таблица пользователей -->
@@ -94,6 +101,7 @@
                             <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700 dark:text-gray-300">Email</th>
                             <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700 dark:text-gray-300">Должность</th>
                             <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700 dark:text-gray-300">Отдел</th>
+                            <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700 dark:text-gray-300">Подотдел</th>
                             <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700 dark:text-gray-300">Роль</th>
                             <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700 dark:text-gray-300">Статус</th>
                             <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700 dark:text-gray-300">Действия</th>
@@ -118,6 +126,9 @@
                             <td class="px-4 py-3 text-sm text-gray-900 dark:text-white">{{ user.email }}</td>
                             <td class="px-4 py-3 text-sm text-gray-900 dark:text-white">{{ user.position_name || '—' }}</td>
                             <td class="px-4 py-3 text-sm text-gray-900 dark:text-white">{{ user.department_name || '—' }}</td>
+                            <td class="px-4 py-3 text-sm text-gray-900 dark:text-white">
+                                {{ user.scoring_department === 'constructor' ? 'Конструктор' : (user.scoring_department === 'designer' ? 'Дизайнер' : '—') }}
+                            </td>
                             <td class="px-4 py-3">
                                 <select
                                     :value="user.role"
@@ -175,7 +186,7 @@
                             </td>
                         </tr>
                         <tr v-if="users.data?.length === 0">
-                            <td colspan="9" class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                            <td colspan="10" class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                                 Нет пользователей для отображения
                             </td>
                         </tr>
@@ -189,6 +200,83 @@
                 </div>
             </div>
         </div>
+
+        <!-- Модальное окно назначения подотделов -->
+        <div v-if="showAssignModal" class="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center z-50 p-4" @click.self="closeAssignModal">
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md transition-colors duration-300">
+                <div class="bg-gradient-to-r from-purple-500 to-purple-600 dark:from-purple-600 dark:to-purple-700 px-6 py-4 rounded-t-lg">
+                    <h2 class="text-xl font-bold text-white">Назначение подотделов</h2>
+                </div>
+
+                <form @submit.prevent="submitAssignScoring" class="p-6 space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Отдел <span class="text-red-500">*</span>
+                        </label>
+                        <select
+                            v-model="assignForm.department_id"
+                            required
+                            class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                        >
+                            <option value="">Выберите отдел</option>
+                            <option v-for="dept in departments" :key="dept.id" :value="dept.id">
+                                {{ dept.name }}
+                            </option>
+                        </select>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            Подотдел будет назначен всем ОДОБРЕННЫМ пользователям этого отдела.
+                        </p>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Тип подотдела <span class="text-red-500">*</span>
+                        </label>
+                        <select
+                            v-model="assignForm.scoring_department"
+                            required
+                            class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                        >
+                            <option value="">Выберите тип</option>
+                            <option value="constructor">Конструктор</option>
+                            <option value="designer">Дизайнер</option>
+                        </select>
+                    </div>
+
+                    <div class="bg-yellow-50 dark:bg-yellow-900/20 p-3 rounded-md">
+                        <div class="flex items-start gap-2">
+                            <svg class="w-5 h-5 text-yellow-600 dark:text-yellow-400 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                            <p class="text-sm text-yellow-700 dark:text-yellow-300">
+                                После назначения подотдела будут автоматически созданы ведомости на текущий месяц для этих пользователей (если их ещё нет).
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-end gap-3 pt-4">
+                        <button
+                            type="button"
+                            @click="closeAssignModal"
+                            class="px-4 py-2 bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500 rounded-md transition"
+                        >
+                            Отмена
+                        </button>
+                        <button
+                            type="submit"
+                            class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-md transition disabled:opacity-50"
+                            :disabled="assignSubmitting"
+                        >
+                            <svg v-if="assignSubmitting" class="animate-spin inline w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            {{ assignSubmitting ? 'Назначение...' : 'Назначить' }}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
     </AppLayout>
 </template>
 
@@ -197,6 +285,7 @@ import { ref, computed, watch } from 'vue'
 import { Head, Link, router } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 import Pagination from '@/Components/UI/Pagination.vue'
+import axios from 'axios'
 
 const props = defineProps({
     users: {
@@ -210,6 +299,10 @@ const props = defineProps({
     filters: {
         type: Object,
         default: () => ({ status: 'pending', search: '' })
+    },
+    departments: {
+        type: Array,
+        default: () => []
     }
 })
 
@@ -217,7 +310,6 @@ const selectedUsers = ref([])
 
 // Следим за изменением данных пользователей (пагинация, фильтры)
 watch(() => props.users.data, () => {
-    // Очищаем выбранных пользователей при смене страницы или фильтров
     selectedUsers.value = []
 }, { deep: true })
 
@@ -231,14 +323,10 @@ const isAllSelectedOnPage = computed(() => {
 // Переключение выбора всех пользователей на странице
 const toggleSelectAll = () => {
     if (!props.users.data || props.users.data.length === 0) return
-
     const currentPageUserIds = props.users.data.map(u => u.id)
-
     if (isAllSelectedOnPage.value) {
-        // Снимаем выделение со всех на текущей странице
         selectedUsers.value = selectedUsers.value.filter(id => !currentPageUserIds.includes(id))
     } else {
-        // Выделяем всех на текущей странице
         const newSelected = [...new Set([...selectedUsers.value, ...currentPageUserIds])]
         selectedUsers.value = newSelected
     }
@@ -320,43 +408,64 @@ const bulkDelete = () => {
         })
     }
 }
+
+// Массовое назначение подотделов
+const showAssignModal = ref(false)
+const assignSubmitting = ref(false)
+const assignForm = ref({
+    department_id: '',
+    scoring_department: ''
+})
+
+const openAssignScoringModal = () => {
+    assignForm.value = { department_id: '', scoring_department: '' }
+    showAssignModal.value = true
+}
+
+const closeAssignModal = () => {
+    showAssignModal.value = false
+    assignForm.value = { department_id: '', scoring_department: '' }
+    assignSubmitting.value = false
+}
+
+const submitAssignScoring = async () => {
+    if (!assignForm.value.department_id || !assignForm.value.scoring_department) {
+        alert('Заполните все поля')
+        return
+    }
+
+    assignSubmitting.value = true
+
+    try {
+        const response = await axios.post(route('admin.users.assign-scoring-department'), assignForm.value, {
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Content-Type': 'application/json'
+            }
+        })
+
+        if (response.data.success) {
+            alert(response.data.message)
+            closeAssignModal()
+            // Обновляем таблицу
+            applyFilters()
+        } else {
+            alert('Ошибка: ' + (response.data.message || 'Неизвестная ошибка'))
+        }
+    } catch (error) {
+        console.error('Ошибка:', error)
+        const errorMsg = error.response?.data?.message || error.message || 'Ошибка сервера'
+        alert('Ошибка при назначении подотделов: ' + errorMsg)
+    } finally {
+        assignSubmitting.value = false
+    }
+}
 </script>
 
 <style scoped>
-/* Плавные переходы для таблицы */
-tbody tr {
-    transition: background-color 0.2s ease;
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
 }
-
-/* Стили для чекбоксов */
-input[type="checkbox"] {
-    cursor: pointer;
-}
-
-/* Адаптивность для мобильных устройств */
-@media (max-width: 768px) {
-    .container {
-        padding-left: 1rem;
-        padding-right: 1rem;
-    }
-
-    table {
-        font-size: 0.875rem;
-    }
-
-    td, th {
-        padding-left: 0.5rem;
-        padding-right: 0.5rem;
-    }
-
-    .flex.gap-2 {
-        gap: 0.5rem;
-    }
-}
-
-/* Отключенные кнопки */
-button:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
+.animate-spin { animation: spin 1s linear infinite; }
 </style>

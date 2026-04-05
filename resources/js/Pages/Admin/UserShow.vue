@@ -78,6 +78,12 @@
                                         <label class="text-sm text-gray-500 dark:text-gray-400">Уровень должности</label>
                                         <p class="font-medium text-gray-900 dark:text-white">{{ getLevelName(user.position_level) }}</p>
                                     </div>
+                                    <div>
+                                        <label class="text-sm text-gray-500 dark:text-gray-400">Подотдел для баллов</label>
+                                        <p class="font-medium text-gray-900 dark:text-white">
+                                            {{ user.scoring_department === 'constructor' ? 'Конструктор' : (user.scoring_department === 'designer' ? 'Дизайнер' : 'Не назначен') }}
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
 
@@ -111,8 +117,7 @@
                                 <div class="space-y-3">
                                     <div class="flex items-center justify-between">
                                         <span class="text-sm text-gray-600 dark:text-gray-400">Роль:</span>
-                                        <span class="px-2 py-1 rounded-full text-xs font-semibold"
-                                              :class="getRoleBadgeClass(user.role)">
+                                        <span class="px-2 py-1 rounded-full text-xs font-semibold" :class="getRoleBadgeClass(user.role)">
                                             {{ getUserRoleName(user.role) }}
                                         </span>
                                     </div>
@@ -259,6 +264,15 @@
                                 <option value="admin">Администратор</option>
                             </select>
                         </div>
+                        <div class="md:col-span-2">
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Подотдел для баллов</label>
+                            <select v-model="editForm.scoring_department" class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                <option value="">Не выбран</option>
+                                <option value="constructor">Конструктор</option>
+                                <option value="designer">Дизайнер</option>
+                            </select>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Выберите подотдел для начисления баллов.</p>
+                        </div>
                     </div>
 
                     <div class="flex justify-end gap-3 mt-6 pt-4 border-t dark:border-gray-700">
@@ -279,7 +293,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 import { Head, Link, router } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 
@@ -309,7 +323,8 @@ const editForm = ref({
     department_id: props.user.department_id,
     position_id: props.user.position_id,
     email: props.user.email,
-    role: props.user.role
+    role: props.user.role,
+    scoring_department: props.user.scoring_department || ''
 })
 
 const getLevelName = (level) => {
@@ -400,7 +415,8 @@ const closeModal = () => {
         department_id: props.user.department_id,
         position_id: props.user.position_id,
         email: props.user.email,
-        role: props.user.role
+        role: props.user.role,
+        scoring_department: props.user.scoring_department || ''
     }
 }
 </script>
