@@ -10,12 +10,10 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use Intervention\Image\Drivers\Gd\Driver;
-use Intervention\Image\ImageManager;
+use Illuminate\Support\Facades\Log;
 
 class AuditService
 {
-
     /**
      * Создание аудита
      */
@@ -107,15 +105,15 @@ class AuditService
     }
 
     /**
-     * Экспорт аудита в PDF с оптимизацией памяти
+     * Экспорт аудита в PDF с оптимизацией памяти (без Intervention Image)
      */
     public function exportToPdf(Audit $audit)
     {
-        // Увеличиваем лимиты для обработки больших изображений
+        // Увеличиваем лимиты
         ini_set('memory_limit', '512M');
         ini_set('max_execution_time', 300);
 
-        // Загружаем все необходимые связи
+        // Загружаем связи
         $audit->load([
             'creator:id,last_name,first_name,patronymic,nickname',
             'assignee:id,last_name,first_name,patronymic,nickname',
@@ -123,28 +121,20 @@ class AuditService
             'comments.user'
         ]);
 
-        // Добавляем вычисляемые поля
+        // Вычисляемые поля
         $audit->creator_name = $audit->creator ? $audit->creator->full_name : '—';
         $audit->creator_short = $audit->creator ? $audit->creator->short_name : '—';
         $audit->assignee_name = $audit->assignee ? $audit->assignee->full_name : 'Не назначен';
         $audit->assignee_short = $audit->assignee ? $audit->assignee->short_name : 'Не назначен';
         $audit->status_name = $this->getStatusName($audit->status);
         $audit->type_name = $this->getAuditTypeName($audit->audit_type);
-
-        // Форматируем время
         $audit->start_time_formatted = $audit->start_time ? date('H:i', strtotime($audit->start_time)) : null;
         $audit->end_time_formatted = $audit->end_time ? date('H:i', strtotime($audit->end_time)) : null;
 
-        // Создаём временную директорию для изображений
-        $tempDir = storage_path('app/temp/pdf_' . uniqid());
-        if (!is_dir($tempDir)) {
-            mkdir($tempDir, 0777, true);
-        }
-
-        $imageManager = new ImageManager(new Driver());
+        // Обрабатываем фото в Base64
         $photos = [];
         $photoCount = 0;
-        $maxPhotos = 30; // Максимум 30 фото в PDF
+        $maxPhotos = 30;
 
         foreach ($audit->media->where('media_type', 'photo') as $media) {
             if ($photoCount >= $maxPhotos) {
@@ -159,22 +149,16 @@ class AuditService
             }
 
             try {
-                // Создаём уменьшенную копию (ширина 800px, качество 75%)
-                $img = $imageManager->read($originalPath);
-                $img->scale(width: 800);
-
-                $tempFilename = 'photo_' . $media->id . '.jpg';
-                $tempPath = $tempDir . '/' . $tempFilename;
-                $img->toJpeg(75)->save($tempPath);
-
-                $photos[] = [
-                    'src' => $tempPath,          // путь к временному файлу
-                    'original_name' => $media->original_name,
-                    'description' => $media->description,
-                    'width' => $img->width(),
-                    'height' => $img->height(),
-                ];
-                $photoCount++;
+                // Конвертируем фото в Base64
+                $base64 = $this->imageToBase64($originalPath);
+                if ($base64) {
+                    $photos[] = [
+                        'src' => $base64,
+                        'original_name' => $media->original_name,
+                        'description' => $media->description,
+                    ];
+                    $photoCount++;
+                }
             } catch (\Exception $e) {
                 Log::error("Ошибка обработки фото {$media->id}: " . $e->getMessage());
             }
@@ -186,24 +170,193 @@ class AuditService
             'generated_at' => now()->format('d.m.Y H:i:s')
         ];
 
-        // Создаём PDF с настройками для работы с локальными файлами
+        // Генерируем PDF с правильными опциями
         $pdf = Pdf::loadView('exports.audit-pdf', $data);
         $pdf->setPaper('A4', 'portrait');
 
-        // Важные настройки dompdf
-        $pdf->getDomPDF()->set_option('defaultFont', 'DejaVu Sans');
-        $pdf->getDomPDF()->set_option('isRemoteEnabled', false); // отключаем удалённые ресурсы
-        $pdf->getDomPDF()->set_option('isHtml5ParserEnabled', true);
-        $pdf->getDomPDF()->set_option('chroot', $tempDir);      // разрешаем доступ к временной папке
+        // Для версии barryvdh/laravel-dompdf 3.x опции устанавливаются так:
+        $pdf->setOptions([
+            'defaultFont' => 'DejaVu Sans',
+            'isRemoteEnabled' => false,     // не загружать внешние ресурсы
+            'isHtml5ParserEnabled' => true,
+            'isPhpEnabled' => false,
+            'chroot' => null,               // не нужен при использовании Base64
+        ]);
 
-        // Генерируем содержимое
-        $pdfContent = $pdf->output();
-
-        // Удаляем временные файлы
-        $this->cleanupTempFiles($tempDir);
-
-        // Возвращаем сам PDF объект для дальнейшего скачивания
+        // Возвращаем PDF для скачивания
         return $pdf;
+    }
+
+    /**
+     * Конвертирует изображение в Base64 (с ресайзом до 800px по ширине)
+     */
+    private function imageToBase64(string $sourcePath): ?string
+    {
+        $imageInfo = getimagesize($sourcePath);
+        if (!$imageInfo) return null;
+
+        $mime = $imageInfo['mime'];
+        $srcImage = null;
+
+        switch ($mime) {
+            case 'image/jpeg':
+                $srcImage = imagecreatefromjpeg($sourcePath);
+                break;
+            case 'image/png':
+                $srcImage = imagecreatefrompng($sourcePath);
+                imagealphablending($srcImage, false);
+                imagesavealpha($srcImage, true);
+                break;
+            case 'image/gif':
+                $srcImage = imagecreatefromgif($sourcePath);
+                break;
+            case 'image/webp':
+                if (function_exists('imagecreatefromwebp')) {
+                    $srcImage = imagecreatefromwebp($sourcePath);
+                } else {
+                    return null;
+                }
+                break;
+            default:
+                return null;
+        }
+
+        if (!$srcImage) return null;
+
+        // Ресайз до ширины 800px
+        $origWidth = imagesx($srcImage);
+        $origHeight = imagesy($srcImage);
+        $maxWidth = 800;
+
+        if ($origWidth > $maxWidth) {
+            $newWidth = $maxWidth;
+            $newHeight = (int) ($origHeight * ($maxWidth / $origWidth));
+            $resized = imagecreatetruecolor($newWidth, $newHeight);
+
+            if ($mime === 'image/png') {
+                imagealphablending($resized, false);
+                imagesavealpha($resized, true);
+                $transparent = imagecolorallocatealpha($resized, 0, 0, 0, 127);
+                imagefilledrectangle($resized, 0, 0, $newWidth, $newHeight, $transparent);
+            }
+
+            imagecopyresampled($resized, $srcImage, 0, 0, 0, 0, $newWidth, $newHeight, $origWidth, $origHeight);
+            imagedestroy($srcImage);
+            $srcImage = $resized;
+        }
+
+        // Сохраняем в буфер
+        ob_start();
+        switch ($mime) {
+            case 'image/jpeg':
+                imagejpeg($srcImage, null, 75);
+                break;
+            case 'image/png':
+                imagepng($srcImage, null, 8);
+                break;
+            case 'image/gif':
+                imagegif($srcImage);
+                break;
+            case 'image/webp':
+                imagewebp($srcImage, null, 75);
+                break;
+            default:
+                imagedestroy($srcImage);
+                return null;
+        }
+        $imageData = ob_get_clean();
+        imagedestroy($srcImage);
+
+        return 'data:' . $mime . ';base64,' . base64_encode($imageData);
+    }
+
+    /**
+     * Изменяет размер изображения с помощью GD и сохраняет во временный файл.
+     *
+     * @param string $sourcePath Путь к исходному изображению
+     * @param string $tempDir Временная директория
+     * @param int $mediaId ID медиа для уникальности имени
+     * @return string|null Путь к обработанному файлу или null при ошибке
+     */
+    private function resizeImageWithGD(string $sourcePath, string $tempDir, int $mediaId): ?string
+    {
+        // Определяем тип изображения
+        $imageInfo = getimagesize($sourcePath);
+        if (!$imageInfo) {
+            return null;
+        }
+
+        $mime = $imageInfo['mime'];
+        $srcImage = null;
+
+        switch ($mime) {
+            case 'image/jpeg':
+                $srcImage = imagecreatefromjpeg($sourcePath);
+                break;
+            case 'image/png':
+                $srcImage = imagecreatefrompng($sourcePath);
+                // Сохраняем прозрачность (альфа-канал)
+                imagealphablending($srcImage, false);
+                imagesavealpha($srcImage, true);
+                break;
+            case 'image/gif':
+                $srcImage = imagecreatefromgif($sourcePath);
+                break;
+            case 'image/webp':
+                if (function_exists('imagecreatefromwebp')) {
+                    $srcImage = imagecreatefromwebp($sourcePath);
+                } else {
+                    Log::warning("WebP не поддерживается GD в этой сборке PHP");
+                    return null;
+                }
+                break;
+            default:
+                Log::warning("Неподдерживаемый тип изображения: {$mime}");
+                return null;
+        }
+
+        if (!$srcImage) {
+            return null;
+        }
+
+        // Получаем оригинальные размеры
+        $origWidth = imagesx($srcImage);
+        $origHeight = imagesy($srcImage);
+
+        // Вычисляем новые размеры (ширина не более 800px, высота пропорционально)
+        $maxWidth = 800;
+        if ($origWidth > $maxWidth) {
+            $newWidth = $maxWidth;
+            $newHeight = (int) ($origHeight * ($maxWidth / $origWidth));
+        } else {
+            $newWidth = $origWidth;
+            $newHeight = $origHeight;
+        }
+
+        // Создаём новое изображение
+        $resizedImage = imagecreatetruecolor($newWidth, $newHeight);
+
+        // Для PNG сохраняем прозрачность
+        if ($mime === 'image/png') {
+            imagealphablending($resizedImage, false);
+            imagesavealpha($resizedImage, true);
+            $transparent = imagecolorallocatealpha($resizedImage, 0, 0, 0, 127);
+            imagefilledrectangle($resizedImage, 0, 0, $newWidth, $newHeight, $transparent);
+        }
+
+        // Масштабируем
+        imagecopyresampled($resizedImage, $srcImage, 0, 0, 0, 0, $newWidth, $newHeight, $origWidth, $origHeight);
+
+        // Сохраняем во временный файл в формате JPEG (качество 75)
+        $tempFilename = 'photo_' . $mediaId . '.jpg';
+        $tempPath = $tempDir . '/' . $tempFilename;
+        imagejpeg($resizedImage, $tempPath, 75);
+
+        // Освобождаем память
+        imagedestroy($srcImage);
+        imagedestroy($resizedImage);
+
+        return $tempPath;
     }
 
     /**
@@ -220,5 +373,34 @@ class AuditService
             }
         }
         rmdir($dir);
+    }
+
+    /**
+     * Получить название статуса на русском
+     */
+    private function getStatusName(string $status): string
+    {
+        $map = [
+            'draft'       => 'Черновик',
+            'in_progress' => 'В процессе',
+            'completed'   => 'Завершен',
+            'cancelled'   => 'Отменен'
+        ];
+        return $map[$status] ?? $status;
+    }
+
+    /**
+     * Получить название типа аудита на русском
+     */
+    private function getAuditTypeName(string $type): string
+    {
+        $map = [
+            'measurement'      => 'Замеры',
+            'production_line'  => 'Производственная линия',
+            'quality_check'    => 'Проверка качества',
+            'consultation'     => 'Консультация',
+            'other'            => 'Другое'
+        ];
+        return $map[$type] ?? $type;
     }
 }

@@ -346,7 +346,7 @@
                     <div class="photo-cell">
                         <div class="photo-frame">
                             <div class="photo-container">
-                                <img src="{{ $photo['src'] }}" class="photo" alt="{{ $photo['original_name'] }}">
+                                <img src="{{ $photo['src'] }}" style="max-width: 100%; height: auto;" alt="{{ $photo['original_name'] }}">
                             </div>
                             @if($photo['description'])
                                 <div class="photo-caption">{{ $photo['description'] }}</div>

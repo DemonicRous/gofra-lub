@@ -52,10 +52,10 @@
                         <span class="text-gray-500 dark:text-gray-400">Дата аудита:</span>
                         <span class="font-medium text-gray-900 dark:text-white">{{ formatFullDate(audit.audit_date) }}</span>
                     </div>
-                    <div v-if="audit.start_time || audit.end_time" class="flex items-center justify-between text-sm">
+                    <div v-if="audit.start_time_formatted || audit.end_time_formatted" class="flex items-center justify-between text-sm">
                         <span class="text-gray-500 dark:text-gray-400">Время:</span>
                         <span class="font-medium text-gray-900 dark:text-white">
-                            {{ formatTime(audit.start_time) }} - {{ formatTime(audit.end_time) }}
+                            {{ audit.start_time_formatted || '—' }} - {{ audit.end_time_formatted || '—' }}
                         </span>
                     </div>
                 </div>

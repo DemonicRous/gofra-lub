@@ -135,13 +135,20 @@ class AuditController extends Controller
             'relatedTask:id,title,status'
         ]);
 
-        // Добавляем вычисляемые поля
+        // Вычисляемые поля
         $audit->creator_name = $audit->creator ? $audit->creator->full_name : '—';
         $audit->creator_short = $audit->creator ? $audit->creator->short_name : '—';
         $audit->assignee_name = $audit->assignee ? $audit->assignee->full_name : 'Не назначен';
         $audit->assignee_short = $audit->assignee ? $audit->assignee->short_name : 'Не назначен';
         $audit->status_name = $this->getStatusName($audit->status);
         $audit->type_name = $this->getAuditTypeName($audit->audit_type);
+
+        // Форматированное время
+        $audit->start_time_formatted = $audit->start_time ? date('H:i', strtotime($audit->start_time)) : null;
+        $audit->end_time_formatted = $audit->end_time ? date('H:i', strtotime($audit->end_time)) : null;
+
+        // Права на редактирование
+        $audit->can_be_edited = $this->canEditAudit($audit, $request->user());
 
         foreach ($audit->comments as $comment) {
             $comment->user_name = $comment->user ? $comment->user->full_name : '—';
@@ -151,6 +158,16 @@ class AuditController extends Controller
         return Inertia::render('Audits/Show', [
             'audit' => $audit
         ]);
+    }
+
+    /**
+     * Проверка права на редактирование аудита (без выбрасывания исключения)
+     */
+    private function canEditAudit(Audit $audit, $user): bool
+    {
+        return $audit->created_by === $user->id ||
+            $user->hasRole('admin') ||
+            ($user->hasRole('manager') && $audit->department_id === $user->department_id);
     }
 
     /**
